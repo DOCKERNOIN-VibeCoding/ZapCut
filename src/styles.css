@@ -47,6 +47,9 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 .dirty { color: var(--accent); font-size: 10px; }
 .export-btn { display: flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 6px; background: var(--accent); color: #002b28; font-weight: 700; }
 .export-btn:hover { background: #3ee6d8; }
+.update-btn { display: flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 5px; font-size: 12px; }
+.update-btn.ready { color: var(--accent); border: 1px solid var(--accent-2); }
+.update-btn.ready:hover { background: var(--panel-3); }
 
 /* 작업 영역 */
 .workspace { display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr) minmax(280px, 22%); min-height: 0; border-bottom: 1px solid var(--line); }

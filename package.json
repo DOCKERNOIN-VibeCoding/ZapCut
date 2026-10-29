@@ -1,8 +1,8 @@
 {
   "name": "zapcut",
   "productName": "ZapCut",
-  "version": "0.1.0-dev",
-  "displayVersion": "Dev v0.1",
+  "version": "1.0.0",
+  "displayVersion": "v1.0",
   "private": true,
   "description": "짭컷(ZapCut) - 오프라인 데스크톱 동영상 편집기",
   "type": "module",
@@ -17,9 +17,11 @@
     "start": "electron .",
     "ffmpeg:prepare": "node scripts/prepare-ffmpeg.mjs",
     "icon": "node scripts/make-icon.mjs",
-    "dist:win": "npm run build && npm run ffmpeg:prepare && electron-builder --win nsis --publish never"
+    "dist:win": "npm run build && npm run ffmpeg:prepare && electron-builder --win nsis --publish never",
+    "release": "npm run build && npm run ffmpeg:prepare && electron-builder --win nsis --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -53,6 +55,12 @@
     "directories": {
       "output": "release"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "DOCKERNOIN-VibeCoding",
+      "repo": "ZapCut",
+      "releaseType": "draft"
+    },
     "extraResources": [
       {
         "from": "build/ffmpeg",
@@ -66,7 +74,7 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "ZapCut-Setup-Dev-v0.1.${ext}",
+      "artifactName": "ZapCut-Setup-${version}.${ext}",
       "icon": "build/icon.png"
     },
     "nsis": {

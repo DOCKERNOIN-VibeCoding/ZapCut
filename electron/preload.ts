@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { UpdateStatus } from "./main";
 
 const api = {
   pickMedia: (): Promise<string[]> => ipcRenderer.invoke("media:pick"),
@@ -37,6 +38,14 @@ const api = {
   onImportExternal: (fn: (files: string[]) => void) => {
     ipcRenderer.on("media:importExternal", (_e, f: string[]) => fn(f));
   },
+  onUpdateStatus: (fn: (s: UpdateStatus) => void) => {
+    const h = (_e: unknown, s: UpdateStatus) => fn(s);
+    ipcRenderer.on("update:status", h);
+    return () => {
+      ipcRenderer.removeListener("update:status", h);
+    };
+  },
+  installUpdate: () => ipcRenderer.invoke("update:install"),
 };
 
 contextBridge.exposeInMainWorld("zapcut", api);

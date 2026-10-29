@@ -6,9 +6,11 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 
 ## 설치
 
-`release/ZapCut-Setup-Dev-v0.1.exe`를 실행합니다. 서명되지 않은 개발 버전이라 Windows SmartScreen 경고가 나올 수 있습니다(추가 정보 → 실행). FFmpeg가 함께 들어 있어 따로 설치할 필요가 없습니다.
+[GitHub Releases](https://github.com/DOCKERNOIN-VibeCoding/ZapCut/releases)에서 `ZapCut-Setup-<버전>.exe`를 받아 실행합니다. 서명되지 않은 프로그램이라 Windows SmartScreen 경고가 나올 수 있습니다(추가 정보 → 실행). FFmpeg가 함께 들어 있어 따로 설치할 필요가 없습니다.
 
-## 지금 되는 기능 (Dev v0.1)
+설치한 뒤에는 프로그램을 켤 때마다 새 버전을 확인합니다. 새 버전이 있으면 내려받아 두고 상단바에 "설치하고 재시작" 버튼을 보여 줍니다. 버튼을 누르지 않으면 프로그램을 끌 때 설치됩니다.
+
+## 지금 되는 기능 (v1.0)
 
 **편집 기본 (1단계)**
 - 미디어 가져오기(버튼, 끌어 놓기, 탐색기 "연결 프로그램"), 썸네일, 필름스트립, 파형, HEVC 등은 자동 프록시
@@ -48,8 +50,14 @@ npm install
 npm run dev          # 개발 모드 (Vite + Electron, 핫 리로드)
 npm test             # 단위 테스트 + 실제 ffmpeg 내보내기 통합 테스트
 npm run typecheck
-npm run dist:win     # release/ZapCut-Setup-Dev-v0.1.exe 생성 (PATH의 ffmpeg를 번들)
+npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg를 번들)
 ```
+
+### 새 버전 배포
+
+1. `package.json`의 `version`(자동 업데이트가 비교하는 값)과 `displayVersion`(화면 표시)을 올립니다.
+2. `$env:GH_TOKEN = (gh auth token); npm run release` — 빌드한 뒤 설치 파일, `latest.yml`, `.blockmap`을 GitHub에 임시 릴리스(draft)로 올립니다. 토큰은 이 셸에만 두고 파일에 저장하지 않습니다.
+3. GitHub Releases에서 임시 릴리스를 확인하고 Publish합니다. 이때부터 설치된 프로그램들이 새 버전을 받습니다.
 
 - VS Code 확장 같은 일부 환경에는 `ELECTRON_RUN_AS_NODE=1`이 설정되어 있습니다. 이 경우 Electron이 Node로 실행되므로 변수를 해제한 뒤 실행하세요.
 - 화면 확인 자동화: `ZAPCUT_SCREENSHOT=out.png`를 지정하면 로드 후 화면을 PNG로 저장하고 종료합니다. 명령줄 인자로 미디어 경로를 주면 자동으로 가져오고, `ZAPCUT_SCREENSHOT_JS`로 캡처 전에 앱을 조작할 수 있습니다(`window.__zapcutStore` 등).
@@ -68,14 +76,14 @@ npm run dist:win     # release/ZapCut-Setup-Dev-v0.1.exe 생성 (PATH의 ffmpeg�
 | `src/library/` | 스티커·효과음·텍스트 템플릿·영상 템플릿 |
 | `src/editor/` | 상태 저장소(실행취소·제스처·키프레임), 비동기 동작(템플릿·스티커·소리·정지 화면·역재생) |
 | `src/components/` | 상단바, 리소스 패널, 플레이어, 속성 패널, 타임라인, 내보내기 창 |
-| `electron/` | 메인 프로세스(미디어 프로토콜, ffprobe/ffmpeg, 저장, 내보내기), 프리로드 |
+| `electron/` | 메인 프로세스(미디어 프로토콜, ffprobe/ffmpeg, 저장, 내보내기, 자동 업데이트), 프리로드 |
 | `tests/` | vitest 테스트 |
 | `docs/cleanroom/` | 기능 명세서와 단계별 로드맵 |
 | `REA/` | 리버스엔지니어링 도구(morluto/rea). 저장소에는 포함하지 않으며 별도로 받습니다 |
 
 ## 로드맵
 
-3~4단계(스피드 램핑, 자동 자막, TTS, 노이즈 제거, AI 배경 제거, 자동 업데이트 등)는
+3~4단계(스피드 램핑, 자동 자막, TTS, 노이즈 제거, AI 배경 제거 등)는
 [SPEC.ko.md §4](docs/cleanroom/SPEC.ko.md)에 정리되어 있습니다.
 
 ## 라이선스

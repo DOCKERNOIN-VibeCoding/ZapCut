@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
+import { autoUpdater } from "electron-updater";
 import { createReadStream, existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -263,6 +264,25 @@ ipcMain.handle("export:start", async (e, project: Project, settings: ExportSetti
 ipcMain.handle("export:cancel", () => exportAbort?.abort());
 ipcMain.handle("shell:showItem", (_e, p: string) => shell.showItemInFolder(p));
 
+export type UpdateStatus = { state: "downloading"; version: string; percent: number } | { state: "ready"; version: string };
+
+/** GitHub 릴리스(package.json build.publish)에서 새 버전을 받아 둔다. 설치는 사용자가 재시작을 누르거나 앱을 끌 때 */
+function checkForUpdates() {
+  if (!app.isPackaged) return;
+  const send = (s: UpdateStatus) => win?.webContents.send("update:status", s);
+  let version = "";
+  autoUpdater.on("update-available", (info) => {
+    version = info.version;
+    send({ state: "downloading", version, percent: 0 });
+  });
+  autoUpdater.on("download-progress", (p) => send({ state: "downloading", version, percent: p.percent }));
+  autoUpdater.on("update-downloaded", (info) => send({ state: "ready", version: info.version }));
+  // 오프라인이거나 GitHub에 닿지 않으면 조용히 넘어간다
+  autoUpdater.on("error", (err) => console.error("update", err.message));
+  autoUpdater.checkForUpdates().catch(() => undefined);
+}
+ipcMain.handle("update:install", () => autoUpdater.quitAndInstall(true, true));
+
 const single = app.requestSingleInstanceLock();
 if (!single) app.quit();
 else {
@@ -277,6 +297,8 @@ else {
   app.whenReady().then(() => {
     protocol.handle("zapcut-media", serveMedia);
     createWindow();
+    // 화면이 상태 알림을 받을 수 있게 된 뒤에 확인한다
+    win!.webContents.once("did-finish-load", checkForUpdates);
   });
   app.on("window-all-closed", () => app.quit());
 }

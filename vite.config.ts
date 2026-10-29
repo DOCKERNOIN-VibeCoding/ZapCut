@@ -4,7 +4,10 @@ import electron from "vite-plugin-electron/simple";
 
 // Electron 메인/프리로드는 CommonJS(.cjs)로 빌드한다 (package.json이 "type": "module"이므로).
 // 메인은 lib 모드, 프리로드는 rollup input 모드로 빌드되므로 각각 형식을 지정한다.
-const mainCjs = { build: { lib: { entry: "electron/main.ts", formats: ["cjs" as const], fileName: () => "main.cjs" } } };
+// electron-updater는 묶지 않고 설치본의 node_modules에서 불러온다
+const mainCjs = {
+  build: { lib: { entry: "electron/main.ts", formats: ["cjs" as const], fileName: () => "main.cjs" }, rollupOptions: { external: ["electron-updater"] } },
+};
 const preloadCjs = { build: { rollupOptions: { output: { format: "cjs" as const, entryFileNames: "[name].cjs", inlineDynamicImports: true } } } };
 
 export default defineConfig({
