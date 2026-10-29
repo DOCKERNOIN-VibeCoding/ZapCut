@@ -63,6 +63,11 @@ function Toast() {
   return <div className={`toast ${toast.kind}`}>{toast.text}</div>;
 }
 
+function Busy() {
+  const busy = useEditor((s) => s.busy);
+  return busy ? <div className="busy">{busy} 중…</div> : null;
+}
+
 export function App() {
   const [exporting, setExporting] = useState(false);
   useShortcuts(() => setExporting(true));
@@ -127,6 +132,7 @@ export function App() {
       <Timeline />
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
       <Toast />
+      <Busy />
     </div>
   );
 }

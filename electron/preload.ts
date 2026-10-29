@@ -11,8 +11,8 @@ const api = {
   recover: () => ipcRenderer.invoke("project:recover"),
   pickExportPath: (name: string, format: string): Promise<string | undefined> => ipcRenderer.invoke("export:pickPath", name, format),
   encoders: (): Promise<string[]> => ipcRenderer.invoke("export:encoders"),
-  startExport: (project: unknown, settings: unknown, textPngs: Record<string, string>, outPath: string) =>
-    ipcRenderer.invoke("export:start", project, settings, textPngs, outPath),
+  startExport: (project: unknown, settings: unknown, texts: Record<string, { w: number; h: number; frames: { png: string; from: number; to: number }[] }>, outPath: string) =>
+    ipcRenderer.invoke("export:start", project, settings, texts, outPath),
   cancelExport: () => ipcRenderer.invoke("export:cancel"),
   showItem: (p: string) => ipcRenderer.invoke("shell:showItem", p),
   onExportProgress: (fn: (v: number) => void) => {
@@ -26,6 +26,14 @@ const api = {
     ipcRenderer.on("project:openExternal", (_e, f: string) => fn(f));
   },
   pendingMedia: (): Promise<string[]> => ipcRenderer.invoke("media:pending"),
+  needsProxy: (item: unknown): Promise<boolean> => ipcRenderer.invoke("media:needsProxy", item),
+  makeProxy: (file: string): Promise<string> => ipcRenderer.invoke("media:makeProxy", file),
+  freezeFrame: (file: string, time: number): Promise<string> => ipcRenderer.invoke("media:freeze", file, time),
+  reverseRange: (file: string, start: number, length: number, hasAudio: boolean): Promise<string> => ipcRenderer.invoke("media:reverse", file, start, length, hasAudio),
+  savePng: (name: string, dataUrl: string): Promise<string> => ipcRenderer.invoke("asset:savePng", name, dataUrl),
+  generateSound: (id: string): Promise<string> => ipcRenderer.invoke("sound:generate", id),
+  pickCube: (): Promise<string | undefined> => ipcRenderer.invoke("cube:pick"),
+  readCube: (file: string): Promise<{ size: number; data: Float32Array } | undefined> => ipcRenderer.invoke("cube:read", file),
   onImportExternal: (fn: (files: string[]) => void) => {
     ipcRenderer.on("media:importExternal", (_e, f: string[]) => fn(f));
   },

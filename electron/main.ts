@@ -6,11 +6,12 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { parseCube } from "../src/core/color";
 import { buildExportPlan, FILTER_PLACEHOLDER, type ExportAssets, type ExportSettings } from "../src/core/exportPlan";
-import type { Project } from "../src/core/types";
-import { encoders, probe, run, thumbnails, waveform } from "./ffmpeg";
+import type { MediaItem, Project } from "../src/core/types";
+import { SOUNDS } from "../src/library/sounds";
+import { encoders, extractFrame, makeProxy, needsProxy, probe, reverseRange, run, thumbnails, waveform } from "./ffmpeg";
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: "zapcut-media", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true } },
+  { scheme: "zapcut-media", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true } },
 ]);
 
 let win: BrowserWindow | null = null;
@@ -25,6 +26,9 @@ const MIME: Record<string, string> = {
   ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".aac": "audio/aac", ".ogg": "audio/ogg", ".flac": "audio/flac",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".bmp": "image/bmp",
 };
+
+// WebGL 텍스처로 쓰려면 교차 출처 허용이 필요하다
+const CORS = { "Access-Control-Allow-Origin": "*" };
 
 /** zapcut-media://f/<encodeURIComponent(path)> — Range 요청을 지원해야 <video> 탐색이 동작한다 */
 async function serveMedia(request: Request): Promise<Response> {
@@ -42,11 +46,11 @@ async function serveMedia(request: Request): Promise<Response> {
     const body = Readable.toWeb(createReadStream(file, { start: startB, end: endB })) as ReadableStream;
     return new Response(body, {
       status: 206,
-      headers: { "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": String(endB - startB + 1), "Content-Range": `bytes ${startB}-${endB}/${info.size}` },
+      headers: { ...CORS, "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": String(endB - startB + 1), "Content-Range": `bytes ${startB}-${endB}/${info.size}` },
     });
   }
   const body = Readable.toWeb(createReadStream(file)) as ReadableStream;
-  return new Response(body, { status: 200, headers: { "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": String(info.size) } });
+  return new Response(body, { status: 200, headers: { ...CORS, "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": String(info.size) } });
 }
 
 function createWindow() {
@@ -74,12 +78,19 @@ function createWindow() {
   // 테스트/검증용: ZAPCUT_SCREENSHOT=경로 → 로드 후 화면을 저장하고 종료
   const shot = process.env.ZAPCUT_SCREENSHOT;
   if (shot) {
+    win.webContents.on("console-message", (e) => {
+      if (e.level === "error" || e.level === "warning") console.log(`[renderer ${e.level}] ${e.message}`);
+    });
     win.webContents.once("did-finish-load", () => {
+      const delay = Number(process.env.ZAPCUT_SCREENSHOT_DELAY ?? 2500);
+      // 화면 검증용: 캡처 전에 앱 상태를 조작하는 스크립트 (window.__zapcutStore 사용 가능)
+      const js = process.env.ZAPCUT_SCREENSHOT_JS;
+      if (js) setTimeout(() => win!.webContents.executeJavaScript(js).catch((e) => console.error("SCREENSHOT_JS", e)), delay * 0.6);
       setTimeout(async () => {
         const img = await win!.webContents.capturePage();
         await writeFile(shot, img.toPNG());
         app.quit();
-      }, Number(process.env.ZAPCUT_SCREENSHOT_DELAY ?? 2500));
+      }, delay);
     });
   }
 }
@@ -98,6 +109,46 @@ ipcMain.handle("media:probe", async (_e, file: string) => {
   const item = await probe(file);
   const [thumbs, wave] = await Promise.all([thumbnails(item).catch(() => ({})), waveform(item).catch(() => undefined)]);
   return { ...item, ...thumbs, waveform: wave };
+});
+
+ipcMain.handle("media:needsProxy", async (_e, item: Omit<MediaItem, "id">) => needsProxy(item));
+ipcMain.handle("media:makeProxy", (_e, file: string) => makeProxy(file));
+ipcMain.handle("media:freeze", (_e, file: string, time: number) => extractFrame(file, time));
+ipcMain.handle("media:reverse", (_e, file: string, start: number, length: number, hasAudio: boolean) => reverseRange(file, start, length, hasAudio));
+
+const assetDir = async (sub: string) => {
+  const dir = path.join(app.getPath("userData"), sub);
+  await mkdir(dir, { recursive: true });
+  return dir;
+};
+/** 렌더러에서 만든 PNG(스티커 등)를 저장 */
+ipcMain.handle("asset:savePng", async (_e, name: string, dataUrl: string) => {
+  const file = path.join(await assetDir("assets"), `${name.replace(/[^\w.-]/g, "_")}.png`);
+  if (!existsSync(file)) await writeFile(file, Buffer.from(dataUrl.split(",")[1], "base64"));
+  return file;
+});
+/** 효과음/배경음악 합성 (처음 한 번만) */
+ipcMain.handle("sound:generate", async (_e, id: string) => {
+  const def = SOUNDS.find((s) => s.id === id);
+  if (!def) throw new Error(`알 수 없는 소리: ${id}`);
+  const file = path.join(await assetDir("sounds"), `${id}.wav`);
+  if (!existsSync(file)) {
+    const tmp = `${file}.part.wav`;
+    await run("ffmpeg", ["-y", "-v", "error", ...def.args, "-ar", "48000", "-ac", "2", tmp]);
+    await rename(tmp, file);
+  }
+  return file;
+});
+ipcMain.handle("cube:pick", async () => {
+  const r = await dialog.showOpenDialog(win!, { title: "LUT 파일 가져오기", properties: ["openFile"], filters: [{ name: "3D LUT", extensions: ["cube"] }] });
+  return r.canceled ? undefined : r.filePaths[0];
+});
+ipcMain.handle("cube:read", async (_e, file: string) => {
+  try {
+    return parseCube(await readFile(file, "utf8"));
+  } catch {
+    return undefined;
+  }
 });
 
 ipcMain.handle("project:save", async (_e, project: Project, filePath?: string) => {

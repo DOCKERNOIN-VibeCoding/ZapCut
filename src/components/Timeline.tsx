@@ -17,7 +17,9 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { clipFromMedia, moveClip, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
+import { findEffect } from "../core/effects";
+import { findTransition } from "../core/transitions";
+import { clipEnd, clipFromMedia, moveClip, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
 import type { Clip, MediaItem, Track } from "../core/types";
 import { WAVE_RATE } from "../core/types";
 import { mediaUrl, useEditor } from "../editor/store";
@@ -28,7 +30,7 @@ const RULER_H = 28;
 const SNAP_PX = 8;
 export const MEDIA_DND = "application/x-zapcut-media";
 
-const trackHeight = (t: Track) => (t.main ? 76 : t.kind === "text" ? 34 : t.kind === "audio" ? 50 : 58);
+const trackHeight = (t: Track) => (t.main ? 76 : t.kind === "text" || t.kind === "effect" ? 32 : t.kind === "audio" ? 50 : 58);
 
 function Waveform({ media, clip, height }: { media: MediaItem; clip: Clip; height: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -64,7 +66,8 @@ function ClipView({ clip, track, media, onPointerDown }: { clip: Clip; track: Tr
   } else if (media?.thumbnail && media.kind === "image") {
     bg = { backgroundImage: `url("${mediaUrl(media.thumbnail)}")`, backgroundSize: `auto 100%`, backgroundRepeat: "repeat-x" };
   }
-  const label = clip.kind === "text" ? clip.text?.content : media?.name;
+  const label = clip.kind === "text" ? clip.text?.content : clip.kind === "effect" ? `✦ ${findEffect(clip.effect?.id)?.name ?? "효과"}` : clip.kind === "adjust" ? "조정 레이어" : media?.name;
+  const kfTimes = selected ? [...new Set(Object.values(clip.keyframes ?? {}).flatMap((ks) => (ks ?? []).map((k) => +k.t.toFixed(3))))] : [];
   return (
     <div className={`clip ${clip.kind} ${selected ? "selected" : ""}`} style={style} onPointerDown={(e) => onPointerDown(e, "move")}>
       <div className="clip-body" style={bg}>
@@ -76,6 +79,13 @@ function ClipView({ clip, track, media, onPointerDown }: { clip: Clip; track: Tr
           <Waveform media={media} clip={clip} height={clip.kind === "audio" ? h - 16 : 16} />
         )}
       </div>
+      {clip.animIn && <span className="anim-ramp in" style={{ width: Math.min(clip.animIn.duration, clip.duration) * zoom }} />}
+      {clip.animOut && <span className="anim-ramp out" style={{ width: Math.min(clip.animOut.duration, clip.duration) * zoom }} />}
+      {clip.animLoop && <span className="anim-loop" title="반복 애니메이션">∞</span>}
+      {(clip.filter || clip.lut) && <span className="clip-badge" title="필터">F</span>}
+      {kfTimes.map((t) => (
+        <span key={t} className="kf-dot" style={{ left: t * zoom }} />
+      ))}
       <span className="trim left" onPointerDown={(e) => onPointerDown(e, "left")} />
       <span className="trim right" onPointerDown={(e) => onPointerDown(e, "right")} />
     </div>
@@ -313,7 +323,7 @@ export function Timeline() {
                     {t.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
                   </button>
                 )}
-                {t.kind !== "text" && (
+                {t.kind !== "text" && t.kind !== "effect" && (
                   <button className="mini" title={t.muted ? "음소거 해제" : "음소거"} onClick={() => ed().updateTrack(t.id, { muted: !t.muted })}>
                     {t.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
                   </button>
@@ -338,6 +348,29 @@ export function Timeline() {
                   {t.clips.map((c) => (
                     <ClipView key={c.id} clip={c} track={t} media={project.media.find((m) => m.id === c.mediaId)} onPointerDown={(e, mode) => onClipPointer(e, c, t, mode)} />
                   ))}
+                  {t.main &&
+                    [...t.clips]
+                      .sort((a, b) => a.start - b.start)
+                      .map((c, i, sorted) => {
+                        const next = sorted[i + 1];
+                        if (!next || Math.abs(next.start - clipEnd(c)) > 0.01) return null;
+                        const tr = findTransition(c.transition?.id);
+                        return (
+                          <button
+                            key={`tr-${c.id}`}
+                            className={`cut-marker ${tr ? "has" : ""}`}
+                            style={{ left: clipEnd(c) * zoom }}
+                            title={tr ? `전환: ${tr.name} (${c.transition!.duration.toFixed(1)}초)` : "전환 추가"}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => {
+                              ed().select([c.id]);
+                              ed().setTab("transition");
+                            }}
+                          >
+                            {tr ? "⇄" : "+"}
+                          </button>
+                        );
+                      })}
                 </div>
               ))}
             </div>

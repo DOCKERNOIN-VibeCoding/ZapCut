@@ -82,7 +82,13 @@ export function textClip(start: number, content?: string): Clip {
 }
 
 export function trackKindFor(clip: Clip): TrackKind {
+  if (clip.kind === "effect" || clip.kind === "adjust") return "effect";
   return clip.kind === "audio" ? "audio" : clip.kind === "text" ? "text" : "video";
+}
+
+/** 효과/조정 레이어 클립 (효과 트랙에 놓임) */
+export function effectClip(start: number, kind: "effect" | "adjust", effect?: Clip["effect"], duration = 3): Clip {
+  return { ...textClip(start), text: undefined, kind, duration, transform: { ...DEFAULT_TRANSFORM }, effect };
 }
 
 const sortClips = (clips: Clip[]) => [...clips].sort((a, b) => a.start - b.start);
@@ -136,10 +142,11 @@ export function placeClip(p: Project, clip: Clip, preferredTrackId?: string, for
   if (!target) {
     const nt = newTrack(kind);
     target = nt;
-    // 화면 배치: 텍스트 → 오버레이 비디오 → 메인 → 오디오
+    // 화면 배치: 효과 → 텍스트 → 오버레이 비디오 → 메인 → 오디오
     const mainIdx = tracks.findIndex((t) => t.main);
     if (kind === "audio") tracks.push(nt);
-    else if (kind === "text") tracks.unshift(nt);
+    else if (kind === "effect") tracks.unshift(nt);
+    else if (kind === "text") tracks.splice(tracks.filter((t) => t.kind === "effect").length, 0, nt);
     else tracks.splice(Math.max(0, mainIdx), 0, nt);
   }
   const id = target.id;

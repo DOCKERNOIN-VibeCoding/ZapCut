@@ -3,6 +3,7 @@ import {
   clipEnd,
   clipFromMedia,
   editPoints,
+  effectClip,
   findClip,
   mapClip,
   newProject,
@@ -16,11 +17,22 @@ import {
   trimAtPlayhead,
   uid,
 } from "../core/timeline";
-import type { Clip, MediaItem, Project, Track } from "../core/types";
+import { defaultParams, findEffect } from "../core/effects";
+import { keyframeValue } from "../core/motion";
+import { upgradeProject, type Clip, type KfProp, type Keyframe, type MediaItem, type Project, type Track, type Transition } from "../core/types";
+import type { TextTemplate } from "../library/textTemplates";
+
+/** T 근처 키가 있으면 값을 바꾸고, 없으면 새로 넣는다 */
+function upsertKey(keys: Keyframe[], T: number, v: number): Keyframe[] {
+  const i = keys.findIndex((k) => Math.abs(k.t - T) < 0.02);
+  if (i >= 0) return keys.map((k, j) => (j === i ? { ...k, v } : k));
+  return [...keys, { t: T, v, ease: "linear" as const }].sort((a, b) => a.t - b.t);
+}
+const baseValue = (c: Clip, prop: KfProp) => (prop === "volume" ? c.volume : c.transform[prop]);
 
 const HISTORY_LIMIT = 200;
 
-export type ResourceTab = "media" | "audio" | "text" | "sticker" | "effect" | "transition" | "filter" | "adjust";
+export type ResourceTab = "media" | "audio" | "text" | "sticker" | "effect" | "transition" | "filter" | "adjust" | "template";
 
 interface EditorState {
   project: Project;
@@ -58,7 +70,17 @@ interface EditorState {
   toggleMagnet: () => void;
   toggleSnapping: () => void;
 
-  importFiles: (paths: string[]) => Promise<MediaItem[]>;
+  busy?: string;
+  setBusy: (v?: string) => void;
+  importFiles: (paths: string[], opts?: { keepAspect?: boolean; names?: string[]; sticker?: boolean }) => Promise<MediaItem[]>;
+  valueAt: (clip: Clip, prop: KfProp, T: number) => number;
+  setClipProps: (id: string, patch: Partial<Record<KfProp, number>>, transient?: boolean) => void;
+  toggleKeyframe: (id: string, prop: KfProp) => void;
+  clearKeyframes: (id: string, prop: KfProp) => void;
+  setTransition: (clipId: string, t?: Transition) => void;
+  addEffect: (effectId: string) => void;
+  addAdjustLayer: () => void;
+  applyTextTemplate: (t: TextTemplate) => void;
   addMediaToTimeline: (mediaId: string, start?: number, trackId?: string) => void;
   addText: (content?: string, patch?: Partial<Clip["text"]>) => void;
   updateClip: (id: string, fn: (c: Clip) => Clip) => void;
@@ -120,7 +142,7 @@ export const useEditor = create<EditorState>((set, get) => {
       if (!future.length) return;
       set({ project: future[0], future: future.slice(1), past: [...past, project], dirty: true });
     },
-    load: (project, filePath) => set({ project, filePath, past: [], future: [], selection: [], playhead: 0, playing: false, dirty: false }),
+    load: (project, filePath) => set({ project: upgradeProject(project), filePath, past: [], future: [], selection: [], playhead: 0, playing: false, dirty: false }),
     markSaved: (filePath) => set({ filePath, dirty: false }),
     notify: (text, kind = "info") => set({ toast: { text, kind, at: Date.now() } }),
 
@@ -135,10 +157,11 @@ export const useEditor = create<EditorState>((set, get) => {
     },
     toggleSnapping: () => set({ snapping: !get().snapping }),
 
-    importFiles: async (paths) => {
+    setBusy: (v) => set({ busy: v }),
+    importFiles: async (paths, opts = {}) => {
       const added: MediaItem[] = [];
       set({ importing: get().importing + paths.length });
-      for (const file of paths) {
+      for (const [i, file] of paths.entries()) {
         try {
           const existing = get().project.media.find((m) => m.path === file);
           if (existing) {
@@ -146,12 +169,23 @@ export const useEditor = create<EditorState>((set, get) => {
             continue;
           }
           const info = await window.zapcut.probeMedia(file);
-          const item: MediaItem = { ...info, id: uid("med") };
+          const item: MediaItem = { ...info, id: uid("med"), name: opts.names?.[i] ?? info.name, sticker: opts.sticker || undefined };
           added.push(item);
           get().commit((p) => ({ ...p, media: [...p.media, item] }));
+          // 미리보기로 재생할 수 없는 코덱이면 프록시를 백그라운드로 만든다
+          if (await window.zapcut.needsProxy(item)) {
+            get().notify(`미리보기용 프록시 생성 중: ${item.name}`);
+            window.zapcut
+              .makeProxy(item.path)
+              .then((proxy) => {
+                set({ project: { ...get().project, media: get().project.media.map((m) => (m.id === item.id ? { ...m, proxy } : m)) } });
+                get().notify(`프록시 준비 완료: ${item.name}`);
+              })
+              .catch((e: Error) => get().notify(`프록시 생성 실패: ${e.message}`, "error"));
+          }
           // 첫 비디오/이미지의 비율로 캔버스를 맞춘다
           const p = get().project;
-          if (p.media.filter((m) => m.kind !== "audio").length === 1 && item.kind !== "audio" && item.width && item.height) {
+          if (!opts.keepAspect && p.media.filter((m) => m.kind !== "audio" && !m.sticker).length === 1 && item.kind !== "audio" && item.width && item.height) {
             const h = 1080;
             const w = Math.round(((item.width / item.height) * h) / 2) * 2;
             set({ project: { ...p, width: w, height: h } });
@@ -254,6 +288,74 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     setProjectProps: (patch) => get().commit((p) => ({ ...p, ...patch })),
+
+    valueAt: (clip, prop, T) => keyframeValue(clip.keyframes?.[prop], baseValue(clip, prop), T),
+
+    // 키프레임이 있는 속성은 현재 시점의 키를, 없으면 기본값을 바꾼다
+    setClipProps: (id, patch, transient) => {
+      const fn = (p: Project) =>
+        mapClip(p, id, (c) => {
+          const T = Math.min(Math.max(0, get().playhead - c.start), c.duration);
+          let next = c;
+          for (const [prop, v] of Object.entries(patch) as [KfProp, number][]) {
+            const keys = next.keyframes?.[prop];
+            if (keys?.length) next = { ...next, keyframes: { ...next.keyframes, [prop]: upsertKey(keys, T, v) } };
+            else if (prop === "volume") next = { ...next, volume: v };
+            else next = { ...next, transform: { ...next.transform, [prop]: v } };
+          }
+          return next;
+        });
+      if (transient && get().gestureBase) get().updateGesture(fn);
+      else get().commit(fn);
+    },
+
+    toggleKeyframe: (id, prop) => {
+      const f = findClip(get().project, id);
+      if (!f) return;
+      const T = get().playhead - f.clip.start;
+      if (T < 0 || T > f.clip.duration) return get().notify("재생헤드를 클립 안으로 옮긴 뒤 키프레임을 추가하세요");
+      const keys = f.clip.keyframes?.[prop] ?? [];
+      const at = keys.findIndex((k) => Math.abs(k.t - T) < 0.02);
+      const nextKeys = at >= 0 ? keys.filter((_, i) => i !== at) : upsertKey(keys, T, get().valueAt(f.clip, prop, T));
+      get().updateClip(id, (c) => ({ ...c, keyframes: { ...c.keyframes, [prop]: nextKeys } }));
+    },
+
+    clearKeyframes: (id, prop) =>
+      get().updateClip(id, (c) => {
+        // 지우기 전 현재 값을 기본값으로 남긴다
+        const v = keyframeValue(c.keyframes?.[prop], baseValue(c, prop), Math.min(Math.max(0, get().playhead - c.start), c.duration));
+        const kf = { ...c.keyframes };
+        delete kf[prop];
+        return prop === "volume" ? { ...c, volume: v, keyframes: kf } : { ...c, transform: { ...c.transform, [prop]: v }, keyframes: kf };
+      }),
+
+    setTransition: (clipId, t) => get().updateClip(clipId, (c) => ({ ...c, transition: t })),
+
+    addEffect: (effectId) => {
+      const def = findEffect(effectId);
+      if (!def) return;
+      const c = effectClip(get().playhead, "effect", { id: def.id, params: defaultParams(def) });
+      get().commit((p) => placeClip(p, c));
+      set({ selection: [c.id] });
+    },
+
+    addAdjustLayer: () => {
+      const c = effectClip(get().playhead, "adjust");
+      get().commit((p) => placeClip(p, c));
+      set({ selection: [c.id] });
+    },
+
+    applyTextTemplate: (tt) => {
+      const c = textClip(get().playhead, tt.content);
+      c.text = { ...c.text!, ...tt.style };
+      c.animIn = tt.animIn;
+      c.animOut = tt.animOut;
+      c.animLoop = tt.animLoop;
+      c.duration = tt.duration ?? 3;
+      c.transform = { ...c.transform, y: tt.y ?? 0.3 };
+      get().commit((p) => placeClip(p, c));
+      set({ selection: [c.id] });
+    },
     removeMedia: (id) => get().commit((p) => ({ ...p, media: p.media.filter((m) => m.id !== id), tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.mediaId !== id) })) })),
   };
 });

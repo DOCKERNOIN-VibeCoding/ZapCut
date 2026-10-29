@@ -1,9 +1,8 @@
 import { FolderOpen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { outputSize, type ExportSettings, type Quality, type VideoEncoder } from "../core/exportPlan";
-import { drawText } from "../core/render";
 import { projectDuration } from "../core/timeline";
-import type { Project } from "../core/types";
+import { renderTextAssets } from "../editor/exportAssets";
 import { useEditor } from "../editor/store";
 
 const ENCODER_LABEL: Record<string, string> = {
@@ -12,23 +11,6 @@ const ENCODER_LABEL: Record<string, string> = {
   h264_qsv: "Intel GPU (Quick Sync)",
   h264_amf: "AMD GPU (AMF)",
 };
-
-/** 텍스트 클립을 출력 해상도의 투명 PNG로 렌더링 (미리보기와 같은 그리기 코드) */
-function renderTextPngs(p: Project, W: number, H: number) {
-  const out: Record<string, string> = {};
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-  for (const t of p.tracks)
-    for (const c of t.clips)
-      if (c.kind === "text" && !t.hidden) {
-        ctx.clearRect(0, 0, W, H);
-        drawText(ctx, W, H, c);
-        out[c.id] = canvas.toDataURL("image/png");
-      }
-  return out;
-}
 
 export function ExportDialog({ onClose }: { onClose: () => void }) {
   const project = useEditor((s) => s.project);
@@ -56,7 +38,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     if (!out) return;
     setResult(null);
     setProgress(0);
-    const pngs = renderTextPngs(project, size.width, size.height);
+    const pngs = renderTextAssets(project, size.height, settings.fps);
     let r = await window.zapcut.startExport(project, settings, pngs, out);
     // GPU 인코더 실패 시 CPU로 재시도
     if (!r.ok && settings.encoder !== "libx264" && !/취소/.test(r.error ?? "")) {

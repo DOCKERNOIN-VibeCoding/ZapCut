@@ -119,6 +119,50 @@ export async function waveform(item: Omit<MediaItem, "id">): Promise<number[] | 
   return peaks;
 }
 
+const PLAYABLE_CODECS = new Set(["h264", "vp8", "vp9", "av1"]);
+const PLAYABLE_EXT = new Set([".mp4", ".m4v", ".mov", ".webm"]);
+
+/** 브라우저(미리보기)에서 재생하기 어려운 동영상인지 */
+export function needsProxy(item: Omit<MediaItem, "id">) {
+  if (item.kind !== "video") return false;
+  return !PLAYABLE_CODECS.has(item.codec ?? "") || !PLAYABLE_EXT.has(path.extname(item.path).toLowerCase());
+}
+
+async function derived(file: string, suffix: string) {
+  const dir = path.join(cacheRoot(), await cacheKey(file));
+  await mkdir(dir, { recursive: true });
+  return path.join(dir, suffix);
+}
+
+/** 미리보기용 H.264 프록시 (원본은 내보내기에 그대로 사용) */
+export async function makeProxy(file: string) {
+  const out = await derived(file, "proxy.mp4");
+  if (existsSync(out)) return out;
+  const tmp = `${out}.part.mp4`;
+  await run("ffmpeg", ["-y", "-v", "error", "-i", file, "-map", "0:v:0", "-map", "0:a:0?", "-vf", "scale=-2:'min(720,ih)'", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p", "-g", "15", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp]);
+  const { rename } = await import("node:fs/promises");
+  await rename(tmp, out);
+  return out;
+}
+
+/** 정지 프레임 PNG */
+export async function extractFrame(file: string, time: number) {
+  const out = await derived(file, `frame_${time.toFixed(3)}.png`);
+  if (!existsSync(out)) await run("ffmpeg", ["-y", "-v", "error", "-ss", String(time), "-i", file, "-frames:v", "1", out]);
+  return out;
+}
+
+/** 구간을 거꾸로 재생하는 파일 (영상+소리) */
+export async function reverseRange(file: string, start: number, length: number, hasAudio: boolean) {
+  const out = await derived(file, `reverse_${start.toFixed(3)}_${length.toFixed(3)}.mp4`);
+  if (existsSync(out)) return out;
+  const args = ["-y", "-v", "error", "-ss", String(start), "-t", String(length), "-i", file, "-vf", "reverse", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"];
+  if (hasAudio) args.push("-af", "areverse", "-c:a", "aac", "-b:a", "192k");
+  else args.push("-an");
+  await run("ffmpeg", [...args, out]);
+  return out;
+}
+
 export async function encoders(): Promise<string[]> {
   try {
     const { stdout } = await run("ffmpeg", ["-hide_banner", "-encoders"]);
