@@ -95,12 +95,13 @@ describe("내보내기 계획", () => {
     let p = withMain(5, 3);
     const t = textClip(1);
     p = placeClip(p, t);
-    const plan = buildExportPlan(p, { height: 1080, fps: 30, quality: "high", encoder: "libx264", format: "mp4" }, { [t.id]: "C:\\tmp\\t.png" }, "C:\\out.mp4");
+    const text = { [t.id]: { w: 400, h: 120, frames: [{ file: "C:\\tmp\\t.png", from: 0, to: 3 }] } };
+    const plan = buildExportPlan(p, { height: 1080, fps: 30, quality: "high", encoder: "libx264", format: "mp4" }, { text }, "C:\\out.mp4");
     expect(plan.duration).toBe(8);
     expect(plan.args).toContain(FILTER_PLACEHOLDER);
+    expect(plan.args).toContain("C:\\tmp\\t.png");
     expect(plan.args.at(-1)).toBe("C:\\out.mp4");
     expect(plan.graph).toContain("[vout]");
     expect(plan.graph).toContain("amix=inputs=2");
-    expect(plan.graph).toMatch(/overlay=x=0:y=0/);
   });
 });

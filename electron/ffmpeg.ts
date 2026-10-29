@@ -18,9 +18,9 @@ export function toolPath(name: "ffmpeg" | "ffprobe") {
   return candidates.find((c) => existsSync(c)) ?? exe(name);
 }
 
-export function run(tool: "ffmpeg" | "ffprobe", args: string[], opts: { onStdout?: (s: string) => void; signal?: AbortSignal; binary?: boolean } = {}) {
+export function run(tool: "ffmpeg" | "ffprobe", args: string[], opts: { onStdout?: (s: string) => void; signal?: AbortSignal; cwd?: string } = {}) {
   return new Promise<{ stdout: Buffer; stderr: string }>((resolve, reject) => {
-    const child = spawn(toolPath(tool), args, { windowsHide: true });
+    const child = spawn(toolPath(tool), args, { windowsHide: true, cwd: opts.cwd });
     const out: Buffer[] = [];
     let err = "";
     child.stdout.on("data", (d: Buffer) => {

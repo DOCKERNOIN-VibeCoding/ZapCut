@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { buildExportPlan, FILTER_PLACEHOLDER, type ExportSettings } from "../src/core/exportPlan";
+import { parseCube } from "../src/core/color";
+import { buildExportPlan, FILTER_PLACEHOLDER, type ExportAssets, type ExportSettings } from "../src/core/exportPlan";
 import type { Project } from "../src/core/types";
 import { encoders, probe, run, thumbnails, waveform } from "./ffmpeg";
 
@@ -156,22 +157,38 @@ ipcMain.handle("export:pickPath", async (_e, name: string, format: string) => {
 
 ipcMain.handle("export:encoders", () => encoders());
 
-ipcMain.handle("export:start", async (e, project: Project, settings: ExportSettings, textPngs: Record<string, string>, outPath: string) => {
+export interface RenderedText {
+  w: number;
+  h: number;
+  frames: { png: string; from: number; to: number }[]; // png = data URL
+}
+
+ipcMain.handle("export:start", async (e, project: Project, settings: ExportSettings, texts: Record<string, RenderedText>, outPath: string) => {
   const work = await mkdtemp(path.join(os.tmpdir(), "zapcut-export-"));
   exportAbort = new AbortController();
   try {
-    const textImages: Record<string, string> = {};
-    for (const [id, dataUrl] of Object.entries(textPngs)) {
-      const file = path.join(work, `${id}.png`);
-      await writeFile(file, Buffer.from(dataUrl.split(",")[1], "base64"));
-      textImages[id] = file;
+    const assets: ExportAssets = { text: {}, luts: {} };
+    for (const [id, t] of Object.entries(texts)) {
+      const frames = [];
+      for (const [i, fr] of t.frames.entries()) {
+        const file = path.join(work, `text_${id}_${i}.png`);
+        await writeFile(file, Buffer.from(fr.png.split(",")[1], "base64"));
+        frames.push({ file, from: fr.from, to: fr.to });
+      }
+      assets.text[id] = { w: t.w, h: t.h, frames };
     }
-    const plan = buildExportPlan(project, settings, textImages, outPath);
-    const script = path.join(work, "graph.txt");
-    await writeFile(script, plan.graph, "utf8");
-    const args = plan.args.map((a) => (a === FILTER_PLACEHOLDER ? script : a));
+    // 외부 .cube LUT 읽기
+    for (const tr of project.tracks)
+      for (const c of tr.clips)
+        if (c.lut && !assets.luts![c.lut.path]) assets.luts![c.lut.path] = parseCube(await readFile(c.lut.path, "utf8"));
+    const plan = buildExportPlan(project, settings, assets, outPath);
+    for (const f of plan.files) await writeFile(path.join(work, f.name), f.content, "utf8");
+    await writeFile(path.join(work, "graph.txt"), plan.graph, "utf8");
+    // LUT 등은 작업 폴더 기준 상대 경로로 참조하므로 cwd를 작업 폴더로 둔다
+    const args = plan.args.map((a) => (a === FILTER_PLACEHOLDER ? "graph.txt" : a));
     let buffer = "";
     await run("ffmpeg", args, {
+      cwd: work,
       signal: exportAbort.signal,
       onStdout: (chunk) => {
         buffer += chunk;
