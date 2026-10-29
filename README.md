@@ -1,6 +1,6 @@
-# ZapCut
+# 짭컷 (ZapCut)
 
-오프라인 Windows 데스크톱 동영상 편집기. 한국어 UI가 기본입니다.
+오프라인 Windows 데스크톱 동영상 편집기. 한국어 UI가 기본이며, 프로그램 화면에는 ZapCut으로 표시됩니다.
 CapCut 데스크톱의 **관찰 가능한 동작**(화면 배치, 단축키, 편집 규칙)을 참고해 독립적으로 구현했습니다.
 CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [docs/cleanroom/SPEC.ko.md](docs/cleanroom/SPEC.ko.md)를 보세요.
 
@@ -80,6 +80,6 @@ npm run dist:win     # release/ZapCut-Setup-Dev-v0.1.exe 생성 (PATH의 ffmpeg�
 
 ## 라이선스
 
-ZapCut 소스: MIT. 번들된 FFmpeg: GPL v3 (gyan.dev full build).
+짭컷 소스: MIT. 번들된 FFmpeg: GPL v3 (gyan.dev full build).
 
-CapCut은 해당 소유자의 상표입니다. ZapCut은 CapCut 및 그 개발사와 관련이 없는 독립 프로젝트입니다.
+CapCut은 해당 소유자의 상표입니다. 짭컷(ZapCut)은 CapCut 및 그 개발사와 관련이 없는 독립 프로젝트입니다.

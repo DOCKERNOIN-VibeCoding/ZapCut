@@ -4,7 +4,7 @@
   "version": "0.1.0-dev",
   "displayVersion": "Dev v0.1",
   "private": true,
-  "description": "ZapCut - 오프라인 데스크톱 동영상 편집기",
+  "description": "짭컷(ZapCut) - 오프라인 데스크톱 동영상 편집기",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "license": "MIT",
@@ -73,7 +73,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "language": "1042",
-      "shortcutName": "ZapCut"
+      "shortcutName": "ZapCut",
+      "uninstallDisplayName": "ZapCut"
     },
     "fileAssociations": [
       {

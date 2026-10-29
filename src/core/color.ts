@@ -130,7 +130,7 @@ export function applyLook(c: RGB, look: Look): RGB {
   return [clamp01(r), clamp01(g), clamp01(b)];
 }
 
-// ── 필터 프리셋 (ZapCut 자체 조합) ───────────────────────────────
+// ── 필터 프리셋 (짭컷 자체 조합) ───────────────────────────────
 const hex = (h: string): RGB => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
 const SEPIA = [0.393, 0.769, 0.189, 0.349, 0.686, 0.168, 0.272, 0.534, 0.131];
 

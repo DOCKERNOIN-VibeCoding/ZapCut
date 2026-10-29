@@ -1,4 +1,4 @@
-// 텍스트 템플릿 = 글자 스타일 + 인/아웃/반복 애니메이션 조합 (ZapCut 자체 구성)
+// 텍스트 템플릿 = 글자 스타일 + 인/아웃/반복 애니메이션 조합 (짭컷 자체 구성)
 import type { AnimRef, TextStyle } from "../core/types";
 
 export interface TextTemplate {

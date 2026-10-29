@@ -1,4 +1,4 @@
-// ZapCut 아이콘(build/icon.png, 512px)을 ffmpeg로 그린다: 청록 바탕 + 흰 번개 모양
+// 짭컷 아이콘(build/icon.png, 512px)을 ffmpeg로 그린다: 청록 바탕 + 흰 번개 모양
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 

@@ -1,4 +1,4 @@
-// ZapCut 프로젝트 데이터 모델. 시간 단위는 모두 초(second).
+// 짭컷 프로젝트 데이터 모델. 시간 단위는 모두 초(second).
 
 export type MediaKind = "video" | "audio" | "image";
 
