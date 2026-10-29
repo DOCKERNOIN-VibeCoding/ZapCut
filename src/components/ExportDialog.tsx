@@ -1,7 +1,7 @@
 import { FolderOpen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { outputSize, type ExportSettings, type Quality, type VideoEncoder } from "../core/exportPlan";
-import { projectDuration } from "../core/timeline";
+import { canvasSize, projectDuration, tierLabel, TIERS } from "../core/timeline";
 import { renderTextAssets } from "../editor/exportAssets";
 import { useEditor } from "../editor/store";
 
@@ -15,7 +15,11 @@ const ENCODER_LABEL: Record<string, string> = {
 export function ExportDialog({ onClose }: { onClose: () => void }) {
   const project = useEditor((s) => s.project);
   const [name, setName] = useState(project.name);
-  const [settings, setSettings] = useState<ExportSettings>({ height: Math.min(project.height, 1080), fps: project.fps, quality: "high", encoder: "libx264", format: "mp4" });
+  // 해상도 선택지는 등급(짧은 변)별 출력 세로 크기. 기본은 프로젝트 해상도에 가장 가까운 등급
+  const heights = TIERS.map((t) => canvasSize(project.width, project.height, t).height);
+  const short = Math.min(project.width, project.height);
+  const nearest = TIERS.reduce((a, t) => (Math.abs(t - short) < Math.abs(a - short) ? t : a));
+  const [settings, setSettings] = useState<ExportSettings>({ height: heights[TIERS.indexOf(nearest)], fps: project.fps, quality: "high", encoder: "libx264", format: "mp4" });
   const [encoders, setEncoders] = useState<string[]>(["libx264"]);
   const [progress, setProgress] = useState<number | null>(null);
   const [result, setResult] = useState<{ ok: boolean; path?: string; error?: string } | null>(null);
@@ -49,7 +53,6 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     setResult(r);
   };
 
-  const heights = [480, 720, 1080, 1440, 2160];
   const busy = progress !== null;
 
   return (
@@ -74,9 +77,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
             <div className="field">
               <label>해상도</label>
               <select value={settings.height} disabled={busy} onChange={(e) => setSettings({ ...settings, height: +e.target.value })}>
-                {heights.map((h) => (
+                {heights.map((h, i) => (
                   <option key={h} value={h}>
-                    {h === 2160 ? "4K" : h === 1440 ? "2K" : `${h}p`} ({outputSize(project, h).width}×{outputSize(project, h).height})
+                    {tierLabel(TIERS[i])} ({outputSize(project, h).width}×{outputSize(project, h).height})
                   </option>
                 ))}
               </select>

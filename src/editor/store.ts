@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  canvasSize,
   clipEnd,
   clipFromMedia,
   editPoints,
@@ -100,7 +101,8 @@ export const useEditor = create<EditorState>((set, get) => {
   const apply = (p: Project) => normalize(p, get().magnet);
 
   return {
-    project: newProject(),
+    // 탐색기 "연결 프로그램"으로 미디어와 함께 켜졌을 때는 새 프로젝트 창 없이 첫 소스에 맞춘다
+    project: newProject(undefined, { fitFirstMedia: true }),
     dirty: false,
     past: [],
     future: [],
@@ -184,12 +186,10 @@ export const useEditor = create<EditorState>((set, get) => {
               })
               .catch((e: Error) => get().notify(`프록시 생성 실패: ${e.message}`, "error"));
           }
-          // 첫 비디오/이미지의 비율로 캔버스를 맞춘다
+          // "첫 소스에 맞춤" 프로젝트면 첫 비디오/이미지의 비율로 캔버스를 맞춘다 (해상도 등급은 유지)
           const p = get().project;
-          if (!opts.keepAspect && p.media.filter((m) => m.kind !== "audio" && !m.sticker).length === 1 && item.kind !== "audio" && item.width && item.height) {
-            const h = 1080;
-            const w = Math.round(((item.width / item.height) * h) / 2) * 2;
-            set({ project: { ...p, width: w, height: h } });
+          if (p.fitFirstMedia && !opts.keepAspect && p.media.filter((m) => m.kind !== "audio" && !m.sticker).length === 1 && item.kind !== "audio" && item.width && item.height) {
+            set({ project: { ...p, ...canvasSize(item.width, item.height, Math.min(p.width, p.height)) } });
           }
         } catch (e) {
           get().notify(`가져오기 실패: ${file.split(/[\\/]/).pop()} — ${(e as Error).message}`, "error");
@@ -288,7 +288,13 @@ export const useEditor = create<EditorState>((set, get) => {
       if (target !== undefined) set({ playhead: target });
     },
 
-    setProjectProps: (patch) => get().commit((p) => ({ ...p, ...patch })),
+    setProjectProps: (patch) =>
+      get().commit((p) => {
+        const next = { ...p, ...patch };
+        // 캔버스 크기를 직접 정했으면 첫 소스로 덮어쓰지 않는다
+        if (patch.width !== undefined || patch.height !== undefined) delete next.fitFirstMedia;
+        return next;
+      }),
 
     valueAt: (clip, prop, T) => keyframeValue(clip.keyframes?.[prop], baseValue(clip, prop), T),
 

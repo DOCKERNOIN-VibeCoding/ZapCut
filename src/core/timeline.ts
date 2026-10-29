@@ -8,7 +8,26 @@ export const TEXT_DEFAULT = 3;
 let counter = 0;
 export const uid = (prefix: string) => `${prefix}_${Date.now().toString(36)}${(counter++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-export function newProject(name = "새 프로젝트"): Project {
+export const RATIOS: { label: string; w: number; h: number }[] = [
+  { label: "16:9", w: 16, h: 9 },
+  { label: "9:16", w: 9, h: 16 },
+  { label: "1:1", w: 1, h: 1 },
+  { label: "4:3", w: 4, h: 3 },
+  { label: "3:4", w: 3, h: 4 },
+  { label: "21:9", w: 21, h: 9 },
+];
+
+/** 해상도 등급 = 캔버스의 짧은 변 (4K는 16:9에서 3840×2160, 9:16에서 2160×3840) */
+export const TIERS = [480, 720, 1080, 1440, 2160];
+export const tierLabel = (short: number) => (short === 2160 ? "4K" : short === 1440 ? "2K" : `${short}p`);
+
+/** 비율 w:h를 짧은 변 short로 키운 캔버스 크기 (짝수) */
+export function canvasSize(w: number, h: number, short: number) {
+  const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
+  return w >= h ? { width: even((short * w) / h), height: even(short) } : { width: even(short), height: even((short * h) / w) };
+}
+
+export function newProject(name = "새 프로젝트", opts: Partial<Pick<Project, "width" | "height" | "fps" | "fitFirstMedia">> = {}): Project {
   return {
     version: 1,
     name,
@@ -16,6 +35,7 @@ export function newProject(name = "새 프로젝트"): Project {
     height: 1080,
     fps: 30,
     background: "#000000",
+    ...opts,
     media: [],
     tracks: [newTrack("video", true)],
   };

@@ -179,6 +179,8 @@ export interface Project {
   height: number;
   fps: number;
   background: string;
+  // 첫 영상/이미지를 가져오면 그 비율로 캔버스를 맞춘다. 비율을 직접 고르면 지운다.
+  fitFirstMedia?: true;
   media: MediaItem[];
   // 화면 표시 순서(위→아래). 영상 합성 순서는 아래쪽 트랙이 먼저(가장 뒤).
   tracks: Track[];

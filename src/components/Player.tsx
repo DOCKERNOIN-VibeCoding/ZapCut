@@ -2,7 +2,7 @@ import { Maximize, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { compile } from "../core/expr";
 import { volumeExpr } from "../core/motion";
-import { clipEnd, findClip, projectDuration } from "../core/timeline";
+import { canvasSize, clipEnd, findClip, projectDuration, RATIOS } from "../core/timeline";
 import type { Clip, MediaItem, Project } from "../core/types";
 import { mediaUrl, useEditor } from "../editor/store";
 import { Compositor, type LayerBox } from "../preview/compositor";
@@ -10,14 +10,6 @@ import { frameAt, type Frame } from "../preview/frame";
 import { formatTime } from "./format";
 
 const PREVIEW_MAX_H = 720;
-const RATIOS: { label: string; w: number; h: number }[] = [
-  { label: "16:9", w: 1920, h: 1080 },
-  { label: "9:16", w: 1080, h: 1920 },
-  { label: "1:1", w: 1080, h: 1080 },
-  { label: "4:3", w: 1440, h: 1080 },
-  { label: "3:4", w: 1080, h: 1440 },
-  { label: "21:9", w: 2520, h: 1080 },
-];
 
 type MediaEl = HTMLVideoElement | HTMLAudioElement;
 
@@ -355,7 +347,7 @@ export function Player() {
             value={ratioLabel}
             onChange={(e) => {
               const r = RATIOS.find((x) => x.label === e.target.value);
-              if (r) useEditor.getState().setProjectProps({ width: r.w, height: r.h });
+              if (r) useEditor.getState().setProjectProps(canvasSize(r.w, r.h, Math.min(project.width, project.height)));
             }}
           >
             {ratioLabel === "원본" && <option value="원본">원본</option>}

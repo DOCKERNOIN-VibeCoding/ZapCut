@@ -3,7 +3,7 @@ import { useState } from "react";
 import { findFilter } from "../core/color";
 import { defaultParams, findEffect } from "../core/effects";
 import { IN_ANIMS, LOOP_ANIMS, OUT_ANIMS, findAnim } from "../core/motion";
-import { findClip, mapClip, MIN_CLIP, setSpeed } from "../core/timeline";
+import { canvasSize, findClip, mapClip, MIN_CLIP, setSpeed, tierLabel, TIERS } from "../core/timeline";
 import { findTransition, TRANSITIONS } from "../core/transitions";
 import { DEFAULT_ADJUST, DEFAULT_CANVAS, DEFAULT_CHROMA, DEFAULT_CROP, DEFAULT_MASK, DEFAULT_TRANSFORM, type Adjust, type BlendMode, type Clip, type KfProp, type MaskType, type TextStyle } from "../core/types";
 import { freezeFrame, importLut, reverseClip } from "../editor/actions";
@@ -491,12 +491,19 @@ function ProjectSection() {
           <label>이름</label>
           <input className="text" value={p.name} onChange={(e) => set({ name: e.target.value })} />
         </div>
-        <div className="field">
-          <label>해상도</label>
-          <span className="value">
-            {p.width} × {p.height}
-          </span>
-        </div>
+        <Select
+          label="해상도"
+          value={String(Math.min(p.width, p.height))}
+          options={[
+            // 등급에 없는 크기(이전 버전에서 첫 소스에 맞춘 프로젝트 등)는 그대로 보여 준다
+            ...(TIERS.includes(Math.min(p.width, p.height)) ? [] : [{ value: String(Math.min(p.width, p.height)), label: `${p.width} × ${p.height}` }]),
+            ...TIERS.map((t) => {
+              const c = canvasSize(p.width, p.height, t);
+              return { value: String(t), label: `${tierLabel(t)} (${c.width} × ${c.height})` };
+            }),
+          ]}
+          onChange={(v) => set(canvasSize(p.width, p.height, +v))}
+        />
         <Select label="프레임 속도" value={String(p.fps)} options={[24, 25, 30, 50, 60].map((f) => ({ value: String(f), label: `${f} fps` }))} onChange={(v) => set({ fps: +v })} />
         <div className="field">
           <label>배경색</label>

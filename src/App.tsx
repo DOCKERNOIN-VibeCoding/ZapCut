@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ExportDialog } from "./components/ExportDialog";
 import { Inspector } from "./components/Inspector";
+import { NewProjectDialog } from "./components/NewProjectDialog";
 import { Player } from "./components/Player";
 import { ResourcePanel } from "./components/ResourcePanel";
 import { Timeline } from "./components/Timeline";
@@ -70,9 +71,11 @@ function Busy() {
 
 export function App() {
   const [exporting, setExporting] = useState(false);
+  // "startup"은 프로그램 시작 시라 취소할 수 없다
+  const [creating, setCreating] = useState<"startup" | "new" | null>(null);
   useShortcuts(() => setExporting(true));
 
-  // 시작: 파일 연결로 열린 프로젝트/미디어 → 자동 저장 복구
+  // 시작: 파일 연결로 열린 프로젝트/미디어 → 자동 저장 복구 → 새 프로젝트 창
   useEffect(() => {
     const importAndPlace = async (files: string[]) => {
       const items = await useEditor.getState().importFiles(files);
@@ -95,6 +98,7 @@ export function App() {
       const recovered = await window.zapcut.recover();
       const hasContent = recovered && recovered.tracks.some((t: { clips: unknown[] }) => t.clips.length > 0);
       if (hasContent && confirm("이전에 저장하지 않고 종료한 작업이 있습니다. 복구할까요?")) useEditor.getState().load(recovered);
+      else setCreating("startup");
     })();
     window.zapcut.onOpenExternal((f) => openProject(f));
     window.zapcut.onImportExternal((files) => importAndPlace(files));
@@ -123,7 +127,7 @@ export function App() {
 
   return (
     <div className="app">
-      <TopBar onExport={() => setExporting(true)} />
+      <TopBar onNew={() => setCreating("new")} onExport={() => setExporting(true)} />
       <div className="workspace">
         <ResourcePanel />
         <Player />
@@ -131,6 +135,7 @@ export function App() {
       </div>
       <Timeline />
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      {creating && <NewProjectDialog onDone={() => setCreating(null)} onCancel={creating === "new" ? () => setCreating(null) : undefined} />}
       <Toast />
       <Busy />
     </div>

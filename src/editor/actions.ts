@@ -1,6 +1,6 @@
 // 파일을 만들어야 하는 편집 동작 (스티커, 효과음, 정지 프레임, 역재생, 템플릿)
 import { defaultParams, findEffect } from "../core/effects";
-import { clipEnd, clipFromMedia, effectClip, findClip, newTrack, normalize, placeClip, splitClip, textClip, uid } from "../core/timeline";
+import { canvasSize, clipEnd, clipFromMedia, effectClip, findClip, newTrack, normalize, placeClip, splitClip, textClip, uid } from "../core/timeline";
 import { DEFAULT_TRANSFORM, type Clip, type Keyframe, type MediaItem, type Project } from "../core/types";
 import { SOUNDS } from "../library/sounds";
 import { STICKERS, type StickerDef } from "../library/stickers";
@@ -175,7 +175,8 @@ export async function applyTemplate(def: TemplateDef) {
     // 2) 타임라인 구성 (한 번의 커밋 → 실행 취소 한 번으로 되돌림)
     const [W, H] = ASPECTS[def.aspect];
     ed().commit((p0) => {
-      let p: Project = { ...p0, width: W, height: H, tracks: [newTrack("video", true)] };
+      // 템플릿 비율로 바꾸되 프로젝트의 해상도 등급(짧은 변)은 유지
+      let p: Project = { ...p0, ...canvasSize(W, H, Math.min(p0.width, p0.height)), fitFirstMedia: undefined, tracks: [newTrack("video", true)] };
       const mainId = p.tracks[0].id;
       const td = def.transitionDuration ?? 0.6;
       let t = 0;

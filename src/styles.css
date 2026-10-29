@@ -189,6 +189,12 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 .modal-body { padding: 8px 16px; }
 .modal-body > p { padding: 0; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.ratio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 12px; }
+.ratio-opt { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 64px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 6px; color: #cfcfd6; font-size: 12px; }
+.ratio-opt:hover { background: var(--panel-3); }
+.ratio-opt.on { border-color: var(--accent); color: var(--accent); }
+.ratio-shape { border: 2px solid currentColor; border-radius: 2px; }
+.ratio-shape.fit { width: 22px; height: 22px; border-style: dashed; }
 .progress { position: relative; height: 26px; border-radius: 6px; background: var(--panel-3); overflow: hidden; margin: 10px 0; }
 .progress .bar { position: absolute; inset: 0 auto 0 0; background: var(--accent-2); transition: width 0.2s; }
 .progress span { position: relative; display: block; text-align: center; line-height: 26px; font-size: 12px; }

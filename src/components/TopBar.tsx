@@ -50,7 +50,7 @@ function UpdateButton() {
   );
 }
 
-export function TopBar({ onExport }: { onExport: () => void }) {
+export function TopBar({ onNew, onExport }: { onNew: () => void; onExport: () => void }) {
   const name = useEditor((s) => s.project.name);
   const dirty = useEditor((s) => s.dirty);
   const s = useEditor.getState;
@@ -67,7 +67,7 @@ export function TopBar({ onExport }: { onExport: () => void }) {
           title="새 프로젝트"
           onClick={() => {
             if (s().dirty && !confirm("저장하지 않은 변경 사항이 있습니다. 새 프로젝트를 만들까요?")) return;
-            s().load(newProject());
+            onNew();
           }}
         >
           <FilePlus2 size={15} /> 새로 만들기
