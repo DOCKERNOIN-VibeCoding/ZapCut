@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-electron/
+release/
+build/ffmpeg/
+*.log
+# 외부 도구 저장소(morluto/rea, 자체 .git 보유) — 별도로 받는다
+REA/

@@ -1,0 +1,86 @@
+{
+  "name": "zapcut",
+  "productName": "ZapCut",
+  "version": "0.1.0-dev",
+  "displayVersion": "Dev v0.1",
+  "private": true,
+  "description": "ZapCut - 오프라인 데스크톱 동영상 편집기",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "license": "MIT",
+  "author": "ZapCut contributors",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "electron .",
+    "ffmpeg:prepare": "node scripts/prepare-ffmpeg.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "dist:win": "npm run build && npm run ffmpeg:prepare && electron-builder --win nsis --publish never"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-plugin-electron": "^0.29.0",
+    "vitest": "^5.0.4"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "app.zapcut.editor",
+    "productName": "ZapCut",
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json",
+      "LICENSE"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "build/ffmpeg",
+        "to": "ffmpeg",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "ZapCut-Setup-Dev-v0.1.${ext}",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "language": "1042",
+      "shortcutName": "ZapCut"
+    },
+    "fileAssociations": [
+      {
+        "ext": "zapcut",
+        "name": "ZapCut 프로젝트",
+        "role": "Editor"
+      }
+    ]
+  }
+}
