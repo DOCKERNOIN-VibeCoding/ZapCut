@@ -56,8 +56,9 @@ npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg�
 ### 새 버전 배포
 
 1. `package.json`의 `version`(자동 업데이트가 비교하는 값)과 `displayVersion`(화면 표시)을 올립니다.
-2. `$env:GH_TOKEN = (gh auth token); npm run release` — 빌드한 뒤 설치 파일, `latest.yml`, `.blockmap`을 GitHub에 임시 릴리스(draft)로 올립니다. 토큰은 이 셸에만 두고 파일에 저장하지 않습니다.
-3. GitHub Releases에서 임시 릴리스를 확인하고 Publish합니다. 이때부터 설치된 프로그램들이 새 버전을 받습니다.
+2. `gh release create v<버전> --draft --title "ZapCut v<버전>"` — 임시 릴리스(draft)를 먼저 만듭니다. 없는 상태에서 올리면 electron-builder가 파일을 동시에 올리다 임시 릴리스를 두 개 만들고 파일이 나뉘어 들어갑니다.
+3. `$env:GH_TOKEN = (gh auth token); npm run release` — 빌드한 뒤 설치 파일, `latest.yml`, `.blockmap`을 그 임시 릴리스에 올립니다. 토큰은 이 셸에만 두고 파일에 저장하지 않습니다.
+4. GitHub Releases에서 파일 3개가 다 있는지 확인하고 Publish합니다. 이때부터 설치된 프로그램들이 새 버전을 받습니다.
 
 - VS Code 확장 같은 일부 환경에는 `ELECTRON_RUN_AS_NODE=1`이 설정되어 있습니다. 이 경우 Electron이 Node로 실행되므로 변수를 해제한 뒤 실행하세요.
 - 화면 확인 자동화: `ZAPCUT_SCREENSHOT=out.png`를 지정하면 로드 후 화면을 PNG로 저장하고 종료합니다. 명령줄 인자로 미디어 경로를 주면 자동으로 가져오고, `ZAPCUT_SCREENSHOT_JS`로 캡처 전에 앱을 조작할 수 있습니다(`window.__zapcutStore` 등).
