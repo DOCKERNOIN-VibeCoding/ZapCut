@@ -203,9 +203,10 @@ export class Compositor {
       key = clip.kind === "image" ? `img:${clip.mediaId}` : `vid:${clip.id}`;
       dynamic = clip.kind === "video";
     }
-    if (!src) return undefined;
     const id = clip.kind === "image" ? `img:${clip.mediaId}` : clip.id;
     let entry = this.texCache.get(id);
+    // 영상이 탐색(seek) 중이라 새 프레임이 없으면 직전 프레임을 그대로 쓴다 (화면이 검게 깜빡이지 않도록)
+    if (!src) return entry;
     const w = (src as HTMLVideoElement).videoWidth || (src as HTMLImageElement).naturalWidth || (src as HTMLCanvasElement).width;
     const h = (src as HTMLVideoElement).videoHeight || (src as HTMLImageElement).naturalHeight || (src as HTMLCanvasElement).height;
     if (!w || !h) return undefined;

@@ -19,7 +19,7 @@ import {
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { findEffect } from "../core/effects";
 import { findTransition } from "../core/transitions";
-import { clipEnd, clipFromMedia, moveClip, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
+import { clipEnd, clipFromMedia, moveClip, resolveOverlap, uid, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
 import type { Clip, MediaItem, Track } from "../core/types";
 import { WAVE_RATE } from "../core/types";
 import { mediaUrl, useEditor } from "../editor/store";
@@ -69,7 +69,7 @@ function ClipView({ clip, track, media, onPointerDown }: { clip: Clip; track: Tr
   const label = clip.kind === "text" ? clip.text?.content : clip.kind === "effect" ? `✦ ${findEffect(clip.effect?.id)?.name ?? "효과"}` : clip.kind === "adjust" ? "조정 레이어" : media?.name;
   const kfTimes = selected ? [...new Set(Object.values(clip.keyframes ?? {}).flatMap((ks) => (ks ?? []).map((k) => +k.t.toFixed(3))))] : [];
   return (
-    <div className={`clip ${clip.kind} ${selected ? "selected" : ""}`} style={style} onPointerDown={(e) => onPointerDown(e, "move")}>
+    <div className={`clip ${clip.kind} ${selected ? "selected" : ""}`} data-clip-id={clip.id} style={style} onPointerDown={(e) => onPointerDown(e, "move")}>
       <div className="clip-body" style={bg}>
         <span className="clip-label">
           {clip.speed !== 1 && <b>{clip.speed.toFixed(2)}x </b>}
@@ -154,11 +154,12 @@ export function Timeline() {
   };
 
   /** 포인터 Y → 트랙 id (위/아래 바깥이면 "new") */
-  const trackAt = (clientY: number): string | "new" => {
+  /** @param layout 겨냥에 쓸 트랙 배치. 드래그 중에는 시작 시점 배치를 넘겨 줄이 밀려도 겨냥이 흔들리지 않게 한다 */
+  const trackAt = (clientY: number, layout: Track[] = ed().project.tracks): string | "new" => {
     const rect = contentRef.current!.getBoundingClientRect();
     let y = clientY - rect.top - RULER_H;
     if (y < 0) return "new";
-    for (const t of ed().project.tracks) {
+    for (const t of layout) {
       const h = trackHeight(t);
       if (y < h) return t.id;
       y -= h;
@@ -200,6 +201,8 @@ export function Timeline() {
     const grabOffset = timeAt(e.clientX) - clip.start;
     const points = snapPoints(s.project, [clip.id], s.playhead);
     const threshold = SNAP_PX / s.zoom;
+    const layout = s.project.tracks;
+    const newTrackId = uid("trk");
     let started = false;
     const move = (ev: PointerEvent) => {
       if (!started) {
@@ -224,8 +227,8 @@ export function Timeline() {
           }
         }
         showSnap(line);
-        const target = trackAt(ev.clientY);
-        st.updateGesture((p) => moveClip(p, clip.id, target, start, st.magnet));
+        const target = trackAt(ev.clientY, layout);
+        st.updateGesture((p) => moveClip(p, clip.id, target, start, st.magnet, { allowOverlap: true, newTrackId }));
       } else {
         let edgeT = t;
         const sp = st.snapping ? snap(edgeT, points, threshold) : undefined;
@@ -238,7 +241,8 @@ export function Timeline() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       showSnap(undefined);
-      if (started) ed().endGesture();
+      // 놓은 자리가 다른 클립과 겹치면 그 트랙 바로 위에 새 트랙을 만든다
+      if (started) ed().endGesture(mode === "move" ? (p) => resolveOverlap(p, clip.id) : undefined);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);

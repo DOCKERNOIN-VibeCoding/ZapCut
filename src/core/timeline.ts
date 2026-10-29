@@ -21,8 +21,8 @@ export function newProject(name = "새 프로젝트"): Project {
   };
 }
 
-export function newTrack(kind: TrackKind, main = false): Track {
-  return { id: uid("trk"), kind, main: main || undefined, clips: [], muted: false, hidden: false, locked: false };
+export function newTrack(kind: TrackKind, main = false, id = uid("trk")): Track {
+  return { id, kind, main: main || undefined, clips: [], muted: false, hidden: false, locked: false };
 }
 
 export function clipEnd(c: Clip) {
@@ -104,11 +104,12 @@ export function packTrack(track: Track): Track {
   return { ...track, clips };
 }
 
-export function normalize(p: Project, magnet: boolean): Project {
+/** @param keepEmpty 드래그 중에는 빈 트랙을 남겨 트랙 줄 위치가 흔들리지 않게 한다 */
+export function normalize(p: Project, magnet: boolean, keepEmpty = false): Project {
   const tracks = p.tracks
     .map((t) => (t.main && magnet ? packTrack(t) : { ...t, clips: sortClips(t.clips) }))
     // 메인 트랙이 아닌 빈 트랙은 제거
-    .filter((t) => t.main || t.clips.length > 0);
+    .filter((t) => keepEmpty || t.main || t.clips.length > 0);
   return { ...p, tracks };
 }
 
@@ -129,7 +130,7 @@ export function overlaps(track: Track, start: number, end: number, ignoreId?: st
 }
 
 /** 겹치지 않는 같은 종류의 트랙을 찾거나 새 트랙을 만들어 클립을 넣는다. */
-export function placeClip(p: Project, clip: Clip, preferredTrackId?: string, forceNew = false): Project {
+export function placeClip(p: Project, clip: Clip, preferredTrackId?: string, forceNew = false, newTrackId?: string): Project {
   const kind = trackKindFor(clip);
   const tracks = [...p.tracks];
   const fits = (t: Track) => t.kind === kind && !t.locked && (t.main || !overlaps(t, clip.start, clipEnd(clip), clip.id));
@@ -140,7 +141,7 @@ export function placeClip(p: Project, clip: Clip, preferredTrackId?: string, for
   }
   if (!target && !forceNew) target = tracks.find((t) => fits(t) && !t.main);
   if (!target) {
-    const nt = newTrack(kind);
+    const nt = newTrack(kind, false, newTrackId);
     target = nt;
     // 화면 배치: 효과 → 텍스트 → 오버레이 비디오 → 메인 → 오디오
     const mainIdx = tracks.findIndex((t) => t.main);
@@ -220,14 +221,24 @@ export function setSpeed(p: Project, clipId: string, speed: number): Project {
   });
 }
 
+export interface MoveOptions {
+  /** 드래그 중: 겹쳐도 겨냥한 트랙에 그대로 둔다 (놓을 때 resolveOverlap으로 정리) */
+  allowOverlap?: boolean;
+  /** "new" 트랙을 만들 때 쓸 고정 ID (드래그 중 매번 같은 트랙이 되도록) */
+  newTrackId?: string;
+}
+
 /** 클립을 다른 트랙/시간으로 이동. 메인 트랙(자석)에서는 놓은 위치로 순서를 바꾼다. */
-export function moveClip(p: Project, clipId: string, targetTrackId: string | "new", start: number, magnet: boolean): Project {
+export function moveClip(p: Project, clipId: string, targetTrackId: string | "new", start: number, magnet: boolean, opts: MoveOptions = {}): Project {
   const found = findClip(p, clipId);
   if (!found) return p;
   const clip = { ...found.clip, start: Math.max(0, start) };
   let next = removeClips(p, [clipId]);
-  const target = next.tracks.find((t) => t.id === targetTrackId);
-  if (target && target.kind === trackKindFor(clip) && !target.locked) {
+  const compatible = (t?: Track) => !!t && t.kind === trackKindFor(clip) && !t.locked;
+  let target = next.tracks.find((t) => t.id === targetTrackId);
+  // 드래그 중 다른 종류의 트랙 위라면 원래 트랙에 머문다 (트랙을 새로 만들지 않음)
+  if (opts.allowOverlap && targetTrackId !== "new" && !compatible(target)) target = next.tracks.find((t) => t.id === found.track.id);
+  if (target && compatible(target)) {
     if (target.main && magnet) {
       // 놓은 클립의 시작점이 어느 클립의 중간점 앞에 있는지로 순서를 정한다
       const ordered = sortClips(target.clips);
@@ -239,11 +250,22 @@ export function moveClip(p: Project, clipId: string, targetTrackId: string | "ne
       next = { ...next, tracks: next.tracks.map((t) => (t.id === target.id ? packTrack({ ...t, clips: reindexed }) : t)) };
       return next;
     }
-    if (target.main || !overlaps(target, clip.start, clipEnd(clip))) {
-      return { ...next, tracks: next.tracks.map((t) => (t.id === target.id ? { ...t, clips: [...t.clips, clip] } : t)) };
+    if (target.main || opts.allowOverlap || !overlaps(target, clip.start, clipEnd(clip))) {
+      const id = target.id;
+      return { ...next, tracks: next.tracks.map((t) => (t.id === id ? { ...t, clips: [...t.clips, clip] } : t)) };
     }
   }
-  return placeClip(next, clip, undefined, targetTrackId === "new");
+  return placeClip(next, clip, undefined, targetTrackId === "new", opts.newTrackId);
+}
+
+/** 놓을 때: 클립이 같은 트랙의 다른 클립과 겹치면 그 트랙 바로 위에 새 트랙을 만들어 옮긴다 */
+export function resolveOverlap(p: Project, clipId: string): Project {
+  const found = findClip(p, clipId);
+  if (!found || found.track.main || !overlaps(found.track, found.clip.start, clipEnd(found.clip), clipId)) return p;
+  const tracks = removeClips(p, [clipId]).tracks;
+  const idx = tracks.findIndex((t) => t.id === found.track.id);
+  tracks.splice(idx, 0, { ...newTrack(found.track.kind), clips: [found.clip] });
+  return { ...p, tracks };
 }
 
 /** 스냅 대상 시간들 (클립 경계 + 재생헤드) */

@@ -55,7 +55,7 @@ interface EditorState {
   commit: (fn: (p: Project) => Project) => void;
   beginGesture: () => void;
   updateGesture: (fn: (p: Project) => Project) => void;
-  endGesture: () => void;
+  endGesture: (finalize?: (p: Project) => Project) => void;
   undo: () => void;
   redo: () => void;
   load: (project: Project, filePath?: string) => void;
@@ -124,13 +124,14 @@ export const useEditor = create<EditorState>((set, get) => {
     updateGesture: (fn) => {
       const base = get().gestureBase;
       if (!base) return;
-      set({ project: apply(fn(base)) });
+      // 드래그 중에는 빈 트랙을 지우지 않는다 (트랙 줄이 밀려 겨냥이 흔들리는 것 방지)
+      set({ project: normalize(fn(base), get().magnet, true) });
     },
-    endGesture: () => {
+    endGesture: (finalize) => {
       const { gestureBase, project, past } = get();
       if (!gestureBase) return;
       if (gestureBase === project) return set({ gestureBase: undefined });
-      set({ gestureBase: undefined, past: [...past, gestureBase].slice(-HISTORY_LIMIT), future: [], dirty: true });
+      set({ gestureBase: undefined, project: apply(finalize ? finalize(project) : project), past: [...past, gestureBase].slice(-HISTORY_LIMIT), future: [], dirty: true });
     },
     undo: () => {
       const { past, project, future } = get();

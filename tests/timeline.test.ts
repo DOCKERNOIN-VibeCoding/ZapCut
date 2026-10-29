@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { atempoChain, buildExportPlan, FILTER_PLACEHOLDER, outputSize } from "../src/core/exportPlan";
-import { clipFromMedia, moveClip, newProject, normalize, placeClip, projectDuration, setSpeed, splitClip, textClip, trimAtPlayhead, trimClip } from "../src/core/timeline";
+import { clipFromMedia, moveClip, newProject, normalize, placeClip, projectDuration, resolveOverlap, setSpeed, splitClip, textClip, trimAtPlayhead, trimClip } from "../src/core/timeline";
 import type { MediaItem, Project } from "../src/core/types";
 
 const video = (id: string, duration: number): MediaItem => ({ id, kind: "video", path: `C:\\v\\${id}.mp4`, name: `${id}.mp4`, duration, width: 1920, height: 1080, fps: 30, hasAudio: true });
@@ -66,6 +66,50 @@ describe("분할과 트림", () => {
     const id = main(p).clips[0].id;
     const res = trimClip(p, id, "right", 30);
     expect(main(res).clips[0].duration).toBe(10);
+  });
+});
+
+describe("다른 트랙으로 끌기 (드래그 중 안정성)", () => {
+  // 오버레이 트랙(클립 Y 0~5초) + 메인 트랙(A, B)
+  function setup() {
+    let p = withMain(4, 4);
+    const y = { ...clipFromMedia(video("y", 10), 0), duration: 5 };
+    p = normalize(placeClip(p, y), true);
+    const overlay = p.tracks.find((t) => !t.main)!;
+    return { p, overlayId: overlay.id, a: main(p).clips[0], y };
+  }
+
+  it("겹치는 위치로 끌 때 같은 입력이면 항상 같은 결과(트랙 ID 포함)", () => {
+    const { p, overlayId, a } = setup();
+    const opts = { allowOverlap: true, newTrackId: "trk_drag" };
+    const r1 = normalize(moveClip(p, a.id, overlayId, 1, true, opts), true, true);
+    const r2 = normalize(moveClip(p, a.id, overlayId, 1, true, opts), true, true);
+    expect(r1.tracks.map((t) => t.id)).toEqual(r2.tracks.map((t) => t.id));
+    // 드래그 중에는 겨냥한 트랙에 그대로 머문다 (트랙이 새로 생기지 않음)
+    expect(r1.tracks.find((t) => t.id === overlayId)!.clips.some((c) => c.id === a.id)).toBe(true);
+    expect(r1.tracks.length).toBe(p.tracks.length);
+  });
+
+  it("드래그 중에는 빈 트랙을 지우지 않아 줄 위치가 유지된다", () => {
+    const { p, overlayId, y } = setup();
+    const moved = normalize(moveClip(p, y.id, main(p).id, 1, true, { allowOverlap: true, newTrackId: "trk_drag" }), true, true);
+    expect(moved.tracks.map((t) => t.id)).toEqual(p.tracks.map((t) => t.id));
+    expect(moved.tracks.find((t) => t.id === overlayId)!.clips).toHaveLength(0);
+  });
+
+  it("놓을 때 겹치면 겨냥한 트랙 바로 위에 새 트랙을 만든다", () => {
+    const { p, overlayId, a, y } = setup();
+    const dragged = normalize(moveClip(p, a.id, overlayId, 1, true, { allowOverlap: true, newTrackId: "trk_drag" }), true, true);
+    const done = normalize(resolveOverlap(dragged, a.id), true);
+    const idx = done.tracks.findIndex((t) => t.id === overlayId);
+    expect(done.tracks[idx - 1].clips.map((c) => c.id)).toEqual([a.id]); // 바로 위 새 트랙
+    expect(done.tracks[idx].clips.map((c) => c.id)).toEqual([y.id]); // 원래 클립은 그대로
+  });
+
+  it("겹치지 않게 놓으면 그 트랙에 그대로 들어간다", () => {
+    const { p, overlayId, a } = setup();
+    const done = normalize(resolveOverlap(normalize(moveClip(p, a.id, overlayId, 6, true, { allowOverlap: true }), true, true), a.id), true);
+    expect(done.tracks.find((t) => t.id === overlayId)!.clips.map((c) => c.id)).toContain(a.id);
   });
 });
 
