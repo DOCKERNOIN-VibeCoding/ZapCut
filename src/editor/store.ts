@@ -20,7 +20,8 @@ import {
 } from "../core/timeline";
 import { defaultParams, findEffect } from "../core/effects";
 import { keyframeValue } from "../core/motion";
-import { upgradeProject, type Clip, type KfProp, type Keyframe, type MediaItem, type Project, type Track, type Transition } from "../core/types";
+import { isMaskProp, MASK_KF } from "../core/mask";
+import { DEFAULT_MASK, upgradeProject, type Clip, type KfProp, type Keyframe, type MediaItem, type Project, type Track, type Transition } from "../core/types";
 import type { TextTemplate } from "../library/textTemplates";
 import type { TitleTemplate } from "../library/titleTemplates";
 import { instantiateTitle, titleLabel } from "../core/titles";
@@ -31,7 +32,7 @@ function upsertKey(keys: Keyframe[], T: number, v: number): Keyframe[] {
   if (i >= 0) return keys.map((k, j) => (j === i ? { ...k, v } : k));
   return [...keys, { t: T, v, ease: "linear" as const }].sort((a, b) => a.t - b.t);
 }
-const baseValue = (c: Clip, prop: KfProp) => (prop === "volume" ? c.volume : c.transform[prop]);
+const baseValue = (c: Clip, prop: KfProp) => (prop === "volume" ? c.volume : isMaskProp(prop) ? (c.mask ?? DEFAULT_MASK)[MASK_KF[prop]] : c.transform[prop]);
 
 const HISTORY_LIMIT = 200;
 
@@ -311,6 +312,7 @@ export const useEditor = create<EditorState>((set, get) => {
             const keys = next.keyframes?.[prop];
             if (keys?.length) next = { ...next, keyframes: { ...next.keyframes, [prop]: upsertKey(keys, T, v) } };
             else if (prop === "volume") next = { ...next, volume: v };
+            else if (isMaskProp(prop)) next = { ...next, mask: { ...(next.mask ?? DEFAULT_MASK), [MASK_KF[prop]]: v } };
             else next = { ...next, transform: { ...next.transform, [prop]: v } };
           }
           return next;
@@ -336,7 +338,9 @@ export const useEditor = create<EditorState>((set, get) => {
         const v = keyframeValue(c.keyframes?.[prop], baseValue(c, prop), Math.min(Math.max(0, get().playhead - c.start), c.duration));
         const kf = { ...c.keyframes };
         delete kf[prop];
-        return prop === "volume" ? { ...c, volume: v, keyframes: kf } : { ...c, transform: { ...c.transform, [prop]: v }, keyframes: kf };
+        if (prop === "volume") return { ...c, volume: v, keyframes: kf };
+        if (isMaskProp(prop)) return { ...c, mask: { ...(c.mask ?? DEFAULT_MASK), [MASK_KF[prop]]: v }, keyframes: kf };
+        return { ...c, transform: { ...c.transform, [prop]: v }, keyframes: kf };
       }),
 
     setTransition: (clipId, t) => get().updateClip(clipId, (c) => ({ ...c, transition: t })),

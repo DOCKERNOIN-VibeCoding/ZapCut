@@ -3,7 +3,7 @@
 import { bakeLut, clipColorFn, cubeText, type CubeLut } from "./color";
 import { findEffect, defaultParams } from "./effects";
 import { num, substitute } from "./expr";
-import { hasMask, maskExpr } from "./mask";
+import { hasMask, maskAnimated, maskExpr } from "./mask";
 import { maxOver, motionExprs, volumeExpr } from "./motion";
 import { clipEnd, projectDuration } from "./timeline";
 import { trackTransitions, transitionRect, type TrackTransition } from "./transitions";
@@ -215,7 +215,11 @@ function buildLayer(c: Ctx, clip: Clip, T0: number, len: number, tOut: number): 
     const mw = Math.max(2, Math.round(srcW));
     const mh = Math.max(2, Math.round(srcH));
     const mk = g.label("mk");
-    g.add(`color=c=black:s=${mw}x${mh}:r=${s.fps}:d=${n(1 / s.fps)},format=gray,geq=lum='255*(${maskExpr(clip.mask)})',loop=loop=-1:size=1,trim=duration=${n(len)}[${mk}]`);
+    if (maskAnimated(clip)) {
+      // 움직이는 마스크: 프레임마다 계산하되 1/4 해상도로 계산해 늘린다 (페더 경계라 차이가 거의 없다)
+      const e = substitute(maskExpr(clip.mask, clip.keyframes), "T", `T+${num(T0)}`);
+      g.add(`color=c=black:s=${Math.max(8, Math.round(mw / 4))}x${Math.max(8, Math.round(mh / 4))}:r=${s.fps}:d=${n(len)},format=gray,geq=lum='255*(${e})',scale=${mw}:${mh}:flags=bilinear[${mk}]`);
+    } else g.add(`color=c=black:s=${mw}x${mh}:r=${s.fps}:d=${n(1 / s.fps)},format=gray,geq=lum='255*(${maskExpr(clip.mask)})',loop=loop=-1:size=1,trim=duration=${n(len)}[${mk}]`);
     const [l1, l2, la, am, out] = [g.label("ml"), g.label("ml"), g.label("ma"), g.label("mm"), g.label("L")];
     g.add(`[${cur}]split[${l1}][${l2}]`);
     g.add(`[${l2}]alphaextract[${la}]`);

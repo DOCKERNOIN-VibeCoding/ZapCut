@@ -180,6 +180,10 @@ export function removeClips(p: Project, ids: string[]): Project {
 }
 
 /** time 위치에서 클립을 둘로 나눈다. 성공하면 [project, 오른쪽 클립 id] */
+/** 클립 시작이 dt만큼 옮겨졌을 때 키프레임 시각을 맞춘다 (키 시각은 클립 시작 기준. 범위 밖 키도 보간에 그대로 쓰인다) */
+const shiftKeys = (kf: Clip["keyframes"], dt: number): Clip["keyframes"] =>
+  kf && dt ? Object.fromEntries(Object.entries(kf).map(([p, keys]) => [p, keys?.map((k) => ({ ...k, t: k.t - dt }))])) : kf;
+
 export function splitClip(p: Project, clipId: string, time: number): [Project, string | undefined] {
   const found = findClip(p, clipId);
   if (!found) return [p, undefined];
@@ -194,6 +198,7 @@ export function splitClip(p: Project, clipId: string, time: number): [Project, s
     duration: clip.duration - offset,
     in: clip.in + offset * clip.speed,
     fadeIn: 0,
+    keyframes: shiftKeys(clip.keyframes, offset),
   };
   return [
     {
@@ -229,7 +234,7 @@ export function trimClip(p: Project, clipId: string, edge: "left" | "right", new
     // 왼쪽: 원본 앞부분 이상으로 늘릴 수 없음 (in >= 0)
     const minStart = c.kind === "video" || c.kind === "audio" ? c.start - c.in / c.speed : -Infinity;
     const start = Math.min(Math.max(newTime, minStart, 0), end - MIN_CLIP);
-    return { ...c, start, duration: end - start, in: Math.max(0, c.in + (start - c.start) * c.speed) };
+    return { ...c, start, duration: end - start, in: Math.max(0, c.in + (start - c.start) * c.speed), keyframes: shiftKeys(c.keyframes, start - c.start) };
   });
 }
 

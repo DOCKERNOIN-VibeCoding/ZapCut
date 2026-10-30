@@ -74,7 +74,7 @@ export interface TextStyle {
 }
 
 export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut" | "hold";
-export type KfProp = "x" | "y" | "scale" | "rotation" | "opacity" | "volume";
+export type KfProp = "x" | "y" | "scale" | "rotation" | "opacity" | "volume" | "maskX" | "maskY" | "maskW" | "maskH" | "maskRotation" | "maskFeather";
 export interface Keyframe {
   t: number; // 클립 시작 기준 시간
   v: number;

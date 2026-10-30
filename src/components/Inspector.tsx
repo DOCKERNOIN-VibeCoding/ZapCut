@@ -5,6 +5,7 @@ import { defaultParams, findEffect } from "../core/effects";
 import { IN_ANIMS, LOOP_ANIMS, OUT_ANIMS, findAnim } from "../core/motion";
 import { canvasSize, findClip, mapClip, MIN_CLIP, setSpeed, tierLabel, TIERS } from "../core/timeline";
 import { titleLabel } from "../core/titles";
+import { isMaskProp, MASK_KF } from "../core/mask";
 import { findTransition, TRANSITIONS } from "../core/transitions";
 import { DEFAULT_ADJUST, DEFAULT_CANVAS, DEFAULT_CHROMA, DEFAULT_CROP, DEFAULT_MASK, DEFAULT_TRANSFORM, type Adjust, type BlendMode, type Clip, type KfProp, type MaskType, type TextStyle } from "../core/types";
 import { freezeFrame, importLut, reverseClip } from "../editor/actions";
@@ -68,7 +69,7 @@ function PropSlider({ clip, prop, label, min, max, step, unit, k = 1 }: { clip: 
   const T = playhead - clip.start;
   const keys = clip.keyframes?.[prop] ?? [];
   const value = s().valueAt(clip, prop, Math.min(Math.max(0, T), clip.duration)) * k;
-  const def = prop === "scale" || prop === "opacity" || prop === "volume" ? 1 : 0;
+  const def = isMaskProp(prop) ? DEFAULT_MASK[MASK_KF[prop]] : prop === "scale" || prop === "opacity" || prop === "volume" ? 1 : 0;
   return (
     <Slider
       label={label}
@@ -245,15 +246,16 @@ function MaskSection({ clip, edit }: { clip: Clip; edit: Edit }) {
       </div>
       {m.type !== "none" && (
         <>
-          <Slider label="위치 X" value={m.x * 100} min={-50} max={50} step={0.5} unit="%" onChange={(v, tr) => set({ x: v / 100 }, tr)} />
-          <Slider label="위치 Y" value={m.y * 100} min={-50} max={50} step={0.5} unit="%" onChange={(v, tr) => set({ y: v / 100 }, tr)} />
-          {(m.type === "circle" || m.type === "rect") && <Slider label="너비" value={m.w * 100} min={2} max={200} step={1} unit="%" onChange={(v, tr) => set({ w: v / 100 }, tr)} />}
-          {m.type !== "linear" && <Slider label={m.type === "mirror" ? "띠 두께" : "높이"} value={m.h * 100} min={2} max={200} step={1} unit="%" onChange={(v, tr) => set({ h: v / 100 }, tr)} />}
-          <Slider label="회전" value={m.rotation} min={-180} max={180} step={1} unit="°" onChange={(v, tr) => set({ rotation: v }, tr)} />
-          <Slider label="페더" value={m.feather * 100} min={0} max={100} step={1} unit="%" onChange={(v, tr) => set({ feather: v / 100 }, tr)} />
+          <PropSlider clip={clip} prop="maskX" label="위치 X" min={-50} max={50} step={0.5} unit="%" k={100} />
+          <PropSlider clip={clip} prop="maskY" label="위치 Y" min={-50} max={50} step={0.5} unit="%" k={100} />
+          {(m.type === "circle" || m.type === "rect") && <PropSlider clip={clip} prop="maskW" label="너비" min={2} max={200} step={1} unit="%" k={100} />}
+          {m.type !== "linear" && <PropSlider clip={clip} prop="maskH" label={m.type === "mirror" ? "띠 두께" : "높이"} min={2} max={200} step={1} unit="%" k={100} />}
+          <PropSlider clip={clip} prop="maskRotation" label="회전" min={-180} max={180} step={1} unit="°" />
+          <PropSlider clip={clip} prop="maskFeather" label="페더" min={0} max={100} step={1} unit="%" k={100} />
           <label className="check">
             <input type="checkbox" checked={m.invert} onChange={(e) => set({ invert: e.target.checked })} /> 반전
           </label>
+          <p className="muted small">◆ 를 눌러 키프레임을 넣으면 마스크가 시간에 따라 움직입니다.</p>
         </>
       )}
     </section>

@@ -150,6 +150,21 @@ describe.skipIf(!hasFfmpeg)("ffmpeg 내보내기", () => {
     expect(pixel(r.out, 2.0)[2]).toBeGreaterThan(200);
   }, 60000);
 
+  it("마스크 키프레임: 마스크가 시간에 따라 움직인다", () => {
+    let p = mainProject({ ...clipFromMedia(mv2, 0), duration: 2 }); // 파란 배경
+    p = placeClip(p, {
+      ...clipFromMedia(mv, 0),
+      duration: 2,
+      mask: { type: "rect", x: 0, y: 0, w: 0.3, h: 0.5, rotation: 0, feather: 0.02, invert: false },
+      keyframes: { maskX: [{ t: 0, v: -0.3, ease: "linear" }, { t: 2, v: 0.3, ease: "linear" }] },
+    });
+    const r = render(p, { text: {} }, 360);
+    expect(pixel(r.out, 0.1, 0.2, 0.5)[0]).toBeGreaterThan(200); // 처음: 왼쪽에 빨강
+    expect(pixel(r.out, 0.1, 0.8, 0.5)[2]).toBeGreaterThan(200); // 오른쪽은 파랑
+    expect(pixel(r.out, 1.9, 0.8, 0.5)[0]).toBeGreaterThan(200); // 끝: 오른쪽에 빨강
+    expect(pixel(r.out, 1.9, 0.2, 0.5)[2]).toBeGreaterThan(200);
+  }, 60000);
+
   it("효과: 모든 효과가 렌더링된다", () => {
     for (const def of EFFECTS) {
       let p = mainProject({ ...clipFromMedia(mv, 0), duration: 2 });

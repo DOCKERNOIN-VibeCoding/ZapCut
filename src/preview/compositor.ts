@@ -3,7 +3,7 @@
 import { bakeLut, clipColorFn, type CubeLut } from "../core/color";
 import { duoColor, findEffect, defaultParams } from "../core/effects";
 import { compile } from "../core/expr";
-import { hasMask, maskExpr } from "../core/mask";
+import { hasMask, maskAt, maskExpr } from "../core/mask";
 import { renderText } from "../core/textRender";
 import { renderTitle, titleTiming } from "../core/titles";
 import { transitionRect } from "../core/transitions";
@@ -300,7 +300,11 @@ export class Compositor {
     const gl = this.gl;
     const tex = this.newTex();
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, data);
-    if (this.maskCache.size > 64) this.maskCache.clear();
+    // 움직이는 마스크는 프레임마다 새로 만들어지므로 오래된 텍스처를 지운다
+    if (this.maskCache.size > 64) {
+      for (const t of this.maskCache.values()) gl.deleteTexture(t);
+      this.maskCache.clear();
+    }
     this.maskCache.set(key, tex);
     return tex;
   }
@@ -369,7 +373,7 @@ export class Compositor {
       u.i("u_lut", 1);
       u.f("u_lutN", lut.n);
     } else u.i("u_lut", 1);
-    const mask = isMedia && hasMask(clip.mask) ? this.maskTex(clip.mask!, (srcW * (1 - cr.l - cr.r)) / (srcH * (1 - cr.t - cr.b))) : undefined;
+    const mask = isMedia && hasMask(clip.mask) ? this.maskTex(maskAt(clip, layer.T), (srcW * (1 - cr.l - cr.r)) / (srcH * (1 - cr.t - cr.b))) : undefined;
     u.i("u_hasMask", mask ? 1 : 0);
     if (mask) this.bindTex(2, mask);
     u.i("u_mask", 2);
