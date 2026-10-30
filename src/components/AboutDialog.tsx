@@ -1,8 +1,9 @@
-import { Github, RefreshCw, X, Zap } from "lucide-react";
+import { Beer, Github, RefreshCw, X, Zap } from "lucide-react";
 import { useState } from "react";
 import pkg from "../../package.json";
 
 const REPO = "https://github.com/DOCKERNOIN-VibeCoding/ZapCut";
+const DONATE = "https://buymeacoffee.com/dockernoin";
 
 // 설치본에 들어 있는 오픈 소스. license = 정보 창에서 여는 라이선스 문서 (electron/main.ts LICENSE_FILES)
 const CREDITS: { name: string; use: string; license: string; key: string; url: string; source?: string }[] = [
@@ -81,6 +82,9 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
               MIT 라이선스
             </button>
           </div>
+          <button className="beer-btn" onClick={() => window.open(DONATE)} title="Buy Me a Coffee 페이지가 브라우저에서 열립니다">
+            <Beer size={16} /> 개발자에게 맥주 한 잔 사주기 <span className="muted small">Buy Me a Coffee</span>
+          </button>
           {check && <p className="muted small">{checkText(check)}</p>}
 
           <h4 className="about-sub">오픈 소스 크레딧</h4>

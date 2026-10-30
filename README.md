@@ -93,6 +93,10 @@ npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg�
 3~4단계(스피드 램핑, 자동 자막, TTS, 노이즈 제거, AI 배경 제거 등)는
 [SPEC.ko.md §4](docs/cleanroom/SPEC.ko.md)에 정리되어 있습니다.
 
+## 후원
+
+짭컷이 쓸 만했다면 [개발자에게 맥주 한 잔](https://buymeacoffee.com/dockernoin) 사 주세요. 프로그램의 정보 창(상단 로고 클릭)에도 같은 버튼이 있습니다.
+
 ## 라이선스
 
 Copyright © 2026 DOCKERNOIN
