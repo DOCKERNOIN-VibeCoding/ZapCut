@@ -95,7 +95,7 @@ npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg�
 
 ## 후원
 
-짭컷이 쓸 만했다면 [개발자에게 맥주 한 잔](https://buymeacoffee.com/dockernoin) ($3) 사 주세요. 프로그램의 정보 창(상단 로고 클릭)에도 같은 버튼이 있습니다.
+짭컷이 쓸 만했다면 [개발자에게 맥주 한 잔](https://buymeacoffee.com/dockernoin) 사 주세요 (Buy Me a Beer · $3). 프로그램의 정보 창(상단 로고 클릭)에도 같은 버튼이 있습니다.
 
 ## 라이선스
 
