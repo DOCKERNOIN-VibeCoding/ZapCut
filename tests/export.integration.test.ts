@@ -165,6 +165,27 @@ describe.skipIf(!hasFfmpeg)("ffmpeg 내보내기", () => {
     expect(pixel(r.out, 1.9, 0.2, 0.5)[2]).toBeGreaterThan(200);
   }, 60000);
 
+  it("영역 가리기: 효과가 움직이는 영역 안에만 들어간다", () => {
+    let p = mainProject({ ...clipFromMedia(mv2, 0), duration: 2 }); // 파란 배경
+    const cover: Clip = {
+      ...clipFromMedia(mi, 0),
+      id: uid("fx"),
+      kind: "effect",
+      mediaId: undefined,
+      duration: 2,
+      effect: { id: "cover", params: { brightness: 1 } },
+      mask: { type: "rect", x: 0, y: 0, w: 0.4, h: 0.4, rotation: 0, feather: 0.01, invert: false },
+      keyframes: { maskX: [{ t: 0, v: -0.3, ease: "linear" }, { t: 2, v: 0.3, ease: "linear" }] },
+    };
+    p = { ...p, tracks: [{ ...newTrack("effect"), clips: [cover] }, ...p.tracks] };
+    const r = render(p, { text: {} }, 360);
+    const white = (c: number[]) => c[0] > 200 && c[1] > 200 && c[2] > 200;
+    expect(white(pixel(r.out, 0.1, 0.2, 0.5))).toBe(true); // 처음: 왼쪽이 가려짐
+    expect(pixel(r.out, 0.1, 0.8, 0.5)[0]).toBeLessThan(80); // 오른쪽은 파랑 그대로
+    expect(white(pixel(r.out, 1.9, 0.8, 0.5))).toBe(true); // 끝: 오른쪽이 가려짐
+    expect(pixel(r.out, 1.9, 0.2, 0.5)[0]).toBeLessThan(80);
+  }, 60000);
+
   it("효과: 모든 효과가 렌더링된다", () => {
     for (const def of EFFECTS) {
       let p = mainProject({ ...clipFromMedia(mv, 0), duration: 2 });

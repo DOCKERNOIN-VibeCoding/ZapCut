@@ -228,15 +228,16 @@ function AnimSection({ clip, edit }: { clip: Clip; edit: Edit }) {
   );
 }
 
-function MaskSection({ clip, edit }: { clip: Clip; edit: Edit }) {
+/** area = 효과·조정 클립의 적용 영역 (화면 좌표) */
+function MaskSection({ clip, edit, area = false }: { clip: Clip; edit: Edit; area?: boolean }) {
   const m = clip.mask ?? DEFAULT_MASK;
   const set = (patch: Partial<typeof m>, tr = false) => edit((c) => ({ ...c, mask: { ...(c.mask ?? DEFAULT_MASK), ...patch } }), tr);
-  const types: { value: MaskType; label: string }[] = [
-    { value: "none", label: "없음" }, { value: "linear", label: "선형" }, { value: "mirror", label: "거울(띠)" }, { value: "circle", label: "원" }, { value: "rect", label: "사각형" },
-  ];
+  const types: { value: MaskType; label: string }[] = area
+    ? [{ value: "none", label: "전체 화면" }, { value: "rect", label: "사각형" }, { value: "circle", label: "원" }]
+    : [{ value: "none", label: "없음" }, { value: "linear", label: "선형" }, { value: "mirror", label: "거울(띠)" }, { value: "circle", label: "원" }, { value: "rect", label: "사각형" }];
   return (
     <section>
-      <h4>마스크</h4>
+      <h4>{area ? "적용 영역" : "마스크"}</h4>
       <div className="chips">
         {types.map((t) => (
           <button key={t.value} className={`chip ${m.type === t.value ? "on" : ""}`} onClick={() => set({ type: t.value })}>
@@ -255,7 +256,7 @@ function MaskSection({ clip, edit }: { clip: Clip; edit: Edit }) {
           <label className="check">
             <input type="checkbox" checked={m.invert} onChange={(e) => set({ invert: e.target.checked })} /> 반전
           </label>
-          <p className="muted small">◆ 를 눌러 키프레임을 넣으면 마스크가 시간에 따라 움직입니다.</p>
+          <p className="muted small">{area ? "미리보기에서 상자를 끌어 옮기고 모서리로 크기를 바꿀 수 있습니다. ◆ 키프레임을 넣으면 영역이 시간에 따라 움직입니다." : "◆ 를 눌러 키프레임을 넣으면 마스크가 시간에 따라 움직입니다."}</p>
         </>
       )}
     </section>
@@ -597,9 +598,9 @@ export function Inspector() {
       : clip.kind === "audio"
         ? [{ id: "main", label: "오디오" }, { id: "speed", label: "속도" }]
         : clip.kind === "effect"
-          ? [{ id: "main", label: "효과" }]
+          ? [{ id: "main", label: "효과" }, { id: "region", label: "영역" }]
           : clip.kind === "adjust"
-            ? [{ id: "main", label: "조정" }]
+            ? [{ id: "main", label: "조정" }, { id: "region", label: "영역" }]
             : [
                 { id: "main", label: "화면" },
                 { id: "anim", label: "애니메이션" },
@@ -623,6 +624,7 @@ export function Inspector() {
         {active === "main" && clip.kind === "audio" && <AudioSection clip={clip} edit={edit} />}
         {active === "main" && clip.kind === "effect" && <EffectSection clip={clip} edit={edit} />}
         {active === "main" && clip.kind === "adjust" && <AdjustSection clip={clip} edit={edit} />}
+        {active === "region" && <MaskSection clip={clip} edit={edit} area />}
         {active === "main" && (clip.kind === "video" || clip.kind === "image") && (
           <>
             <TransformSection clip={clip} edit={edit} />

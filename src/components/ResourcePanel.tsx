@@ -1,4 +1,4 @@
-import { Film, FolderOpen, Image as ImageIcon, LayoutTemplate, Music, Plus, Shuffle, Sliders, Sparkles, Sticker, Trash2, Type, Wand2, Play } from "lucide-react";
+import { EyeOff, Film, FolderOpen, Image as ImageIcon, LayoutTemplate, Music, Plus, Shuffle, Sliders, Sparkles, Sticker, Trash2, Type, Wand2, Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FILTER_CATEGORIES, FILTER_PRESETS, presetSwatch } from "../core/color";
 import { EFFECT_CATEGORIES, EFFECTS } from "../core/effects";
@@ -16,6 +16,13 @@ import { shortTime } from "./format";
 import { MEDIA_DND, TRANSITION_DND } from "./Timeline";
 import { TitleThumb } from "./TitleThumb";
 import { TransitionThumb } from "./TransitionThumb";
+
+// 화면 일부를 가리는 효과 (영역 마스크가 붙은 효과 클립)
+const COVERS: { name: string; effect: string; params: Record<string, number> }[] = [
+  { name: "모자이크", effect: "mosaic", params: { size: 0.45 } },
+  { name: "블러", effect: "blur", params: { strength: 0.7 } },
+  { name: "검정", effect: "cover", params: { brightness: 0 } },
+];
 
 const TABS: { id: ResourceTab; label: string; icon: React.ReactNode }[] = [
   { id: "media", label: "미디어", icon: <Film size={17} /> },
@@ -270,7 +277,15 @@ export function ResourcePanel() {
 
         {tab === "effect" && (
           <>
-            <p className="muted small">누르면 재생헤드 위치의 효과 트랙에 3초짜리 효과가 놓입니다. 그 아래 모든 화면에 적용됩니다.</p>
+            <h4 className="res-sub">가리기</h4>
+            <div className="cover-row">
+              {COVERS.map((c) => (
+                <button key={c.name} className="chip" onClick={() => useEditor.getState().addEffect(c.effect, { params: c.params })} title="화면 일부만 가립니다. 미리보기에서 상자를 끌어 옮기고 모서리로 크기를 바꿉니다">
+                  <EyeOff size={13} /> {c.name}
+                </button>
+              ))}
+            </div>
+            <p className="muted small">누르면 재생헤드 위치의 효과 트랙에 3초짜리 효과가 놓입니다. 그 아래 모든 화면에 적용되며, 속성 패널의 '영역' 탭에서 일부만 적용할 수도 있습니다.</p>
             <Categorized
               categories={EFFECT_CATEGORIES}
               items={EFFECTS}

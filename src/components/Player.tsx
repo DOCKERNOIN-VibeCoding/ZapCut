@@ -1,6 +1,7 @@
 import { Maximize, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { compile } from "../core/expr";
+import { hasMask } from "../core/mask";
 import { volumeExpr } from "../core/motion";
 import { canvasSize, clipEnd, findClip, projectDuration, RATIOS } from "../core/timeline";
 import type { Clip, MediaItem, Project } from "../core/types";
@@ -278,8 +279,17 @@ export function Player() {
     const cy = rect.top + box.cy * k;
     const d0 = Math.hypot(sx - cx, sy - cy) || 1;
     st.beginGesture();
+    // 효과·조정 클립의 영역: 이동은 위치, 모서리는 너비·높이를 따로 (영역 크기 단위 = 화면 짧은 변)
+    const region = (found.clip.kind === "effect" || found.clip.kind === "adjust") && hasMask(found.clip.mask);
+    const r0 = { x: st.valueAt(found.clip, "maskX", T), y: st.valueAt(found.clip, "maskY", T) };
+    const M = Math.min(rect.width, rect.height);
     const move = (ev: PointerEvent) => {
       const s = useEditor.getState();
+      if (region) {
+        if (mode === "move") s.setClipProps(found.clip.id, { maskX: r0.x + (ev.clientX - sx) / rect.width, maskY: r0.y + (ev.clientY - sy) / rect.height }, true);
+        else s.setClipProps(found.clip.id, { maskW: Math.max(0.02, (2 * Math.abs(ev.clientX - cx)) / M), maskH: Math.max(0.02, (2 * Math.abs(ev.clientY - cy)) / M) }, true);
+        return;
+      }
       if (mode === "move") {
         let nx = base.x + (ev.clientX - sx) / rect.width;
         let ny = base.y + (ev.clientY - sy) / rect.height;

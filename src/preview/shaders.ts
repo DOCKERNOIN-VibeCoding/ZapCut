@@ -239,6 +239,7 @@ void main() {
   else if (u_kind == 1) c = texture(u_aux, uv).rgb;
   else if (u_kind == 40) { vec3 g = texture(u_aux, uv).rgb; c = c + (1.0 - (1.0 - c) * (1.0 - g) - c) * u_a; }
   else if (u_kind == 44) { vec3 g = texture(u_aux, uv).rgb; c = c + (max(c, g) - c) * u_a; }
+  else if (u_kind == 50) c = vec3(floor(u_a * 255.0 + 0.5) / 255.0);
   else if (u_kind == 41) c = clamp(c + u_a * pow(max(0.0, sin(u_t * 3.14159265 * u_b)), 8.0), 0.0, 1.0);
   else if (u_kind == 42) c *= clamp(u_t / max(0.001, u_D), 0.0, 1.0);
   else if (u_kind == 43) c *= 1.0 - clamp(u_t / max(0.001, u_D), 0.0, 1.0);
@@ -332,3 +333,10 @@ void main() {
   }
   o = r;
 }`;
+
+// 영역 효과: 효과 결과를 마스크(화면 좌표, R)만큼 섞는다 (내보내기의 alphamerge → overlay와 같음)
+export const MASKMIX_FS = `#version 300 es
+precision highp float;
+in vec2 v_uv; out vec4 o;
+uniform sampler2D u_base, u_fx, u_mask;
+void main() { o = mix(texture(u_base, v_uv), texture(u_fx, v_uv), texture(u_mask, v_uv).r); }`;

@@ -82,7 +82,7 @@ interface EditorState {
   toggleKeyframe: (id: string, prop: KfProp) => void;
   clearKeyframes: (id: string, prop: KfProp) => void;
   setTransition: (clipId: string, t?: Transition) => void;
-  addEffect: (effectId: string) => void;
+  addEffect: (effectId: string, cover?: { params: Record<string, number> }) => void;
   addAdjustLayer: () => void;
   applyTextTemplate: (t: TextTemplate) => void;
   addTitle: (t: TitleTemplate) => void;
@@ -345,10 +345,12 @@ export const useEditor = create<EditorState>((set, get) => {
 
     setTransition: (clipId, t) => get().updateClip(clipId, (c) => ({ ...c, transition: t })),
 
-    addEffect: (effectId) => {
+    addEffect: (effectId, cover) => {
       const def = findEffect(effectId);
       if (!def) return;
-      const c = effectClip(get().playhead, "effect", { id: def.id, params: defaultParams(def) });
+      const c = effectClip(get().playhead, "effect", { id: def.id, params: { ...defaultParams(def), ...cover?.params } }, cover ? 5 : 3);
+      // 가리기: 화면 가운데 사각형 영역에만 (속성 패널 '영역' 탭이나 미리보기에서 옮긴다)
+      if (cover) c.mask = { ...DEFAULT_MASK, type: "rect", w: 0.3, h: 0.3, feather: 0.04 };
       get().commit((p) => placeClip(p, c));
       set({ selection: [c.id] });
     },

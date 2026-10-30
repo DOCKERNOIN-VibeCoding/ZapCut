@@ -391,7 +391,16 @@ function applyEffectClip(c: Ctx, cur: string, clip: Clip): string {
   const [a, b, i, o, out] = [g.label("ea"), g.label("eb"), g.label("ei"), g.label("eo"), g.label("C")];
   g.add(`[${cur}]split[${a}][${b}]`);
   g.add(`[${b}]trim=start=${st}:end=${en},setpts=PTS-STARTPTS[${i}]`);
-  g.add(chain.replace("{in}", `[${i}]`).replace("{out}", `,setpts=PTS+${st}/TB,format=rgba[${o}]`));
+  if (clip.mask && hasMask(clip.mask)) {
+    // 영역: 효과 결과의 알파를 마스크로 바꿔 그 안에만 얹는다 (마스크 수식의 T = 효과 클립 안 시간)
+    const [pre, mk] = [g.label("ep"), g.label("em")];
+    g.add(chain.replace("{in}", `[${i}]`).replace("{out}", `,format=rgba[${pre}]`));
+    const D = n(clip.duration);
+    if (maskAnimated(clip))
+      g.add(`color=c=black:s=${Math.max(8, Math.round(W / 4))}x${Math.max(8, Math.round(H / 4))}:r=${s.fps}:d=${D},format=gray,geq=lum='255*(${maskExpr(clip.mask, clip.keyframes)})',scale=${W}:${H}:flags=bilinear[${mk}]`);
+    else g.add(`color=c=black:s=${W}x${H}:r=${s.fps}:d=${n(1 / s.fps)},format=gray,geq=lum='255*(${maskExpr(clip.mask)})',loop=loop=-1:size=1,trim=duration=${D}[${mk}]`);
+    g.add(`[${pre}][${mk}]alphamerge,setpts=PTS+${st}/TB[${o}]`);
+  } else g.add(chain.replace("{in}", `[${i}]`).replace("{out}", `,setpts=PTS+${st}/TB,format=rgba[${o}]`));
   g.add(`[${a}][${o}]overlay=eof_action=pass:enable='between(t,${st},${en})'[${out}]`);
   return out;
 }

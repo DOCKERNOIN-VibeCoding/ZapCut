@@ -9,7 +9,7 @@ import { renderTitle, titleTiming } from "../core/titles";
 import { transitionRect } from "../core/transitions";
 import type { BlendMode, Clip, Mask } from "../core/types";
 import type { Frame, LayerDraw } from "./frame";
-import { BLEND_FS, BLUR_FS, COPY_FS, EFFECT_FS, FULL_VS, LAYER_FS, LAYER_VS, TRANSITION_FS } from "./shaders";
+import { BLEND_FS, BLUR_FS, COPY_FS, EFFECT_FS, FULL_VS, LAYER_FS, LAYER_VS, MASKMIX_FS, TRANSITION_FS } from "./shaders";
 
 export type SourceProvider = (layer: LayerDraw) => TexImageSource | undefined;
 
@@ -64,6 +64,7 @@ export class Compositor {
     this.program("blur", FULL_VS, BLUR_FS);
     this.program("effect", FULL_VS, EFFECT_FS);
     this.program("transition", FULL_VS, TRANSITION_FS);
+    this.program("maskmix", FULL_VS, MASKMIX_FS);
   }
 
   private program(name: string, vs: string, fs: string) {
@@ -482,12 +483,14 @@ export class Compositor {
         if (def.kind === 40) aux = this.blur(acc, Math.max(0.5, 25 * k), "fxBlur");
         if (def.kind === 44) aux = this.blur(acc, Math.max(0.5, 40 * k), "fxBlur");
         // u_a = 강도/크기, u_b = 속도/단계 (스케치는 선 진하기)
-        const a = prm.strength ?? prm.size ?? 0;
+        const a = prm.strength ?? prm.size ?? prm.brightness ?? 0;
         const b = def.id === "sketch" ? prm.strength : (prm.speed ?? prm.levels ?? 0);
-        this.pass("effect", alt, (u) => {
+        const region = hasMask(item.clip.mask);
+        this.pass("effect", region ? this.fbo("fxOut") : alt, (u) => {
           this.bindTex(0, acc.tex);
           u.i("u_tex", 0);
-          if (aux) this.bindTex(1, aux.tex);
+          // 보조 텍스처가 없어도 1번에 안전한 것을 묶는다 (이전 프레임의 출력 FBO가 남아 있으면 읽기·쓰기가 겹쳐 그리기가 실패)
+          this.bindTex(1, (aux ?? acc).tex);
           u.i("u_aux", 1);
           u.i("u_kind", def.kind);
           u.f("u_res", this.W, this.H);
@@ -499,6 +502,7 @@ export class Compositor {
           const col = duoColor(prm.hue ?? 0);
           u.f("u_col", col[0], col[1], col[2]);
         });
+        if (region) this.regionMix(item.clip, item.T, acc, this.fbo("fxOut"), alt, boxes);
         swap();
       } else if (item.type === "transition") {
         // 오버레이 전환: 두 클립을 투명 화면에 그려(미리 곱한 알파) 클립 영역 안에서 섞은 뒤 얹는다
@@ -530,8 +534,10 @@ export class Compositor {
         u.i("u_tex", 0);
         this.drawQuad();
       } else if (item.type === "adjust") {
-        // 조정 레이어: 현재 화면 전체에 LUT/선명도/비네트 적용
-        this.drawFboAsLayer(acc, alt, item.clip);
+        // 조정 레이어: 현재 화면 전체(영역이 있으면 그 안)에 LUT/선명도/비네트 적용
+        const region = hasMask(item.clip.mask);
+        this.drawFboAsLayer(acc, region ? this.fbo("fxOut") : alt, item.clip);
+        if (region) this.regionMix(item.clip, item.T, acc, this.fbo("fxOut"), alt, boxes);
         swap();
       }
     }
@@ -542,6 +548,22 @@ export class Compositor {
       u.i("u_tex", 0);
     }, true);
     return boxes;
+  }
+
+  /** 효과·조정 클립의 영역: 효과 결과(fx)를 마스크만큼 원래 화면(base)에 섞고, 선택 상자용 영역을 기록 */
+  private regionMix(clip: Clip, T: number, base: FBO, fx: FBO, dst: FBO, boxes: Map<string, LayerBox>) {
+    const m = maskAt(clip, T);
+    const M = Math.min(this.W, this.H);
+    boxes.set(clip.id, { cx: this.W / 2 + m.x * this.W, cy: this.H / 2 + m.y * this.H, w: m.w * M, h: m.h * M, rot: m.rotation });
+    const mask = this.maskTex(m, this.W / this.H);
+    this.pass("maskmix", dst, (u) => {
+      this.bindTex(0, base.tex);
+      this.bindTex(1, fx.tex);
+      this.bindTex(2, mask);
+      u.i("u_base", 0);
+      u.i("u_fx", 1);
+      u.i("u_mask", 2);
+    });
   }
 
   /** 조정 레이어용: FBO 내용을 LUT/선명도/비네트를 적용해 dst에 그린다 */

@@ -1,4 +1,4 @@
-// 비디오 효과 카탈로그. 효과는 "효과 트랙"의 클립으로 놓이며, 그 아래 합성된 화면 전체에 적용된다.
+// 비디오 효과 카탈로그. 효과는 "효과 트랙"의 클립으로 놓이며, 그 아래 합성된 화면 전체(영역 마스크가 있으면 그 안)에 적용된다.
 // 각 효과는 FFmpeg 그래프 조각(ffmpeg)과 미리보기 셰이더(glsl, preview/shaders.ts의 kind 번호)를 짝으로 가진다.
 // 그래프 조각 규칙: {in} 입력 라벨, {out} 출력 라벨, {p} 고유 접두어. 변수 t = 효과 클립 내부 시간.
 
@@ -37,6 +37,7 @@ export const EFFECTS: EffectDef[] = [
   { id: "blur", name: "흐림", category: "기본", kind: 1, params: [P("strength", "강도", 0, 1, 0.4)], ffmpeg: (p, c) => lin(`gblur=sigma=${f(Math.max(0.01, p.strength * 30 * (c.H / 1080)))}`) },
   { id: "vignette", name: "비네트", category: "기본", kind: 2, params: [P("strength", "강도", 0, 1, 0.5)], ffmpeg: (p) => lin(`vignette=angle=${f(Math.max(0.0001, p.strength * 1.2))}`) },
   { id: "grain", name: "필름 그레인", category: "기본", kind: 3, params: [P("strength", "강도", 0, 1, 0.4)], ffmpeg: (p) => lin(`noise=alls=${Math.round(p.strength * 40)}:allf=t+u`) },
+  { id: "cover", name: "단색 가리기", category: "기본", kind: 50, params: [P("brightness", "밝기", 0, 1, 0)], ffmpeg: (p) => { const v = Math.round(p.brightness * 255); return lin(`lutrgb=r=${v}:g=${v}:b=${v}`); } },
   { id: "mosaic", name: "모자이크", category: "기본", kind: 4, params: [P("size", "블록 크기", 0, 1, 0.3)], ffmpeg: (p, c) => { const b = Math.max(2, Math.round((4 + p.size * 60) * (c.H / 1080))); return lin(`pixelize=width=${b}:height=${b}`); } },
   { id: "negate", name: "반전", category: "기본", kind: 5, params: [], ffmpeg: () => lin("negate") },
   { id: "posterize", name: "포스터", category: "기본", kind: 6, params: [P("levels", "단계", 2, 12, 4, 1)], ffmpeg: (p) => { const L = Math.round(p.levels); const e = `floor(val/256*${L})*255/${L - 1}`; return lin(`lutrgb=r='${e}':g='${e}':b='${e}'`); } },
