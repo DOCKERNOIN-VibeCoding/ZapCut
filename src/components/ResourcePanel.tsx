@@ -15,6 +15,7 @@ import { TEXT_TEMPLATE_CATEGORIES, TEXT_TEMPLATES } from "../library/textTemplat
 import { TITLE_CATEGORIES, TITLE_TEMPLATES } from "../library/titleTemplates";
 import { shortTime } from "./format";
 import { MEDIA_DND, TRANSITION_DND } from "./Timeline";
+import { CaptionPanel } from "./CaptionPanel";
 import { TitleThumb } from "./TitleThumb";
 import { TransitionThumb } from "./TransitionThumb";
 
@@ -98,7 +99,7 @@ export function ResourcePanel() {
   const importing = useEditor((s) => s.importing);
   const [dragOver, setDragOver] = useState(false);
   const [audioTab, setAudioTab] = useState<"mine" | "sfx" | "bgm">("sfx");
-  const [textTab, setTextTab] = useState<"template" | "title" | "basic">("template");
+  const [textTab, setTextTab] = useState<"template" | "title" | "basic" | "caption">("template");
   const visibleMedia = useMemo(() => media.filter((m) => !m.sticker), [media]);
 
   const importDialog = async () => {
@@ -211,8 +212,13 @@ export function ResourcePanel() {
               <button className={textTab === "basic" ? "on" : ""} onClick={() => setTextTab("basic")}>
                 기본
               </button>
+              <button className={textTab === "caption" ? "on" : ""} onClick={() => setTextTab("caption")}>
+                자막
+              </button>
             </div>
-            {textTab === "title" ? (
+            {textTab === "caption" ? (
+              <CaptionPanel />
+            ) : textTab === "title" ? (
               <Categorized
                 categories={TITLE_CATEGORIES}
                 items={TITLE_TEMPLATES}

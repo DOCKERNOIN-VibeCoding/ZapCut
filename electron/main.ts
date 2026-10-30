@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -286,6 +286,92 @@ ipcMain.handle("frame:grab", async (_e, file: string, time: number) => {
   const { stdout } = await run("ffmpeg", ["-v", "error", ...seek, "-i", file, "-frames:v", "1", "-vf", "scale=640:640:force_original_aspect_ratio=decrease,pad=640:640:0:0:color=black", "-f", "rawvideo", "-pix_fmt", "bgr24", "pipe:1"]);
   if (stdout.length < 640 * 640 * 3) throw new Error("프레임을 읽지 못했습니다");
   return stdout.subarray(0, 640 * 640 * 3);
+});
+
+// ── 자동 캡션 (FFmpeg whisper 필터). 모델은 userData/models, 필터 인자에 콜론이 들어가면 안 되므로 cwd를 그 폴더로 ──
+const modelsDir = () => path.join(app.getPath("userData"), "models");
+let captionAbort: AbortController | null = null;
+const dec3 = (v: number) => String(+v.toFixed(3));
+
+ipcMain.handle("caption:models", async () => {
+  await mkdir(modelsDir(), { recursive: true });
+  return (await readdir(modelsDir())).filter((f) => f.endsWith(".bin"));
+});
+ipcMain.handle("caption:download", async (e, url: string, file: string, size: number) => {
+  await mkdir(modelsDir(), { recursive: true });
+  const dest = path.join(modelsDir(), file);
+  const tmp = `${dest}.part`;
+  captionAbort = new AbortController();
+  try {
+    const res = await fetch(url, { signal: captionAbort.signal });
+    if (!res.ok || !res.body) throw new Error(`모델을 내려받지 못했습니다 (${res.status})`);
+    const total = Number(res.headers.get("content-length")) || size;
+    const ws = createWriteStream(tmp);
+    let got = 0;
+    let last = 0;
+    for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+      got += chunk.length;
+      if (!ws.write(chunk)) await new Promise<void>((r) => ws.once("drain", () => r()));
+      if (Date.now() - last > 200) {
+        last = Date.now();
+        e.sender.send("caption:progress", { phase: "download", v: got / total });
+      }
+    }
+    await new Promise<void>((resolve, reject) => {
+      ws.on("error", reject);
+      ws.end(() => resolve());
+    });
+    await rename(tmp, dest);
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => undefined);
+    throw captionAbort?.signal.aborted ? new Error("취소됨") : err;
+  } finally {
+    captionAbort = null;
+  }
+});
+export interface CaptionRequest {
+  path: string;
+  start: number; // 원본 시각(초)
+  duration: number;
+  language: string; // ko, en, … 또는 auto
+  model: string; // 파일 이름
+}
+/** 분석 결과(json 줄들)를 문자열로 돌려준다 */
+ipcMain.handle("caption:run", async (e, req: CaptionRequest) => {
+  const dir = modelsDir();
+  const out = `caption_${Date.now().toString(36)}.json`;
+  captionAbort = new AbortController();
+  try {
+    let buffer = "";
+    await run(
+      "ffmpeg",
+      ["-v", "error", "-nostats", "-progress", "pipe:1", "-ss", dec3(req.start), "-t", dec3(req.duration), "-i", req.path, "-vn", "-af", `whisper=model=${req.model}:language=${req.language}:queue=30:destination=${out}:format=json`, "-f", "null", "-"],
+      {
+        cwd: dir,
+        signal: captionAbort.signal,
+        onStdout: (chunk) => {
+          buffer += chunk;
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const m = /^out_time_us=(\d+)/.exec(line);
+            if (m) e.sender.send("caption:progress", { phase: "run", v: Math.min(1, Number(m[1]) / 1e6 / req.duration) });
+          }
+        },
+      },
+    );
+    return await readFile(path.join(dir, out), "utf8").catch(() => "");
+  } finally {
+    captionAbort = null;
+    await rm(path.join(dir, out), { force: true }).catch(() => undefined);
+  }
+});
+ipcMain.handle("caption:cancel", () => captionAbort?.abort());
+ipcMain.handle("caption:saveSrt", async (_e, srt: string, name: string) => {
+  const r = await dialog.showSaveDialog(win!, { title: "자막 내보내기", defaultPath: path.join(app.getPath("videos"), `${name}.srt`), filters: [{ name: "SubRip 자막", extensions: ["srt"] }] });
+  if (r.canceled || !r.filePath) return undefined;
+  await writeFile(r.filePath, srt, "utf8");
+  return r.filePath;
 });
 
 export interface TrackRequest {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { TrackRequest, UpdateStatus } from "./main";
+import type { CaptionRequest, TrackRequest, UpdateStatus } from "./main";
 
 const api = {
   pickMedia: (): Promise<string[]> => ipcRenderer.invoke("media:pick"),
@@ -46,6 +46,18 @@ const api = {
     };
   },
   installUpdate: () => ipcRenderer.invoke("update:install"),
+  captionModels: (): Promise<string[]> => ipcRenderer.invoke("caption:models"),
+  downloadCaptionModel: (url: string, file: string, size: number): Promise<void> => ipcRenderer.invoke("caption:download", url, file, size),
+  runCaption: (req: CaptionRequest): Promise<string> => ipcRenderer.invoke("caption:run", req),
+  cancelCaption: () => ipcRenderer.invoke("caption:cancel"),
+  saveSrt: (srt: string, name: string): Promise<string | undefined> => ipcRenderer.invoke("caption:saveSrt", srt, name),
+  onCaptionProgress: (fn: (p: { phase: "download" | "run"; v: number }) => void) => {
+    const h = (_e: unknown, p: { phase: "download" | "run"; v: number }) => fn(p);
+    ipcRenderer.on("caption:progress", h);
+    return () => {
+      ipcRenderer.removeListener("caption:progress", h);
+    };
+  },
   mlRead: (name: "yunet.onnx" | "ort.wasm"): Promise<Uint8Array> => ipcRenderer.invoke("ml:read", name),
   grabFrame: (file: string, time: number): Promise<Uint8Array> => ipcRenderer.invoke("frame:grab", file, time),
   trackRegion: (req: TrackRequest): Promise<{ boxes: { x: number; y: number; w: number; h: number }[]; lostAt?: number }> => ipcRenderer.invoke("track:run", req),

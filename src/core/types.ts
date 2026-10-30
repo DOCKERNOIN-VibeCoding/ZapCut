@@ -146,6 +146,7 @@ export interface Clip {
   adjust: Adjust;
   text?: TextStyle;
   title?: Title & { templateId: string }; // 타이틀 템플릿 (kind === "text", text.content는 타임라인 표시용)
+  caption?: true; // 자동 캡션으로 만든 자막 (자막 목록·SRT 내보내기 대상)
   // 2단계
   keyframes?: Partial<Record<KfProp, Keyframe[]>>;
   animIn?: AnimRef;
