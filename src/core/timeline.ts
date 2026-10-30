@@ -184,6 +184,33 @@ export function removeClips(p: Project, ids: string[]): Project {
 const shiftKeys = (kf: Clip["keyframes"], dt: number): Clip["keyframes"] =>
   kf && dt ? Object.fromEntries(Object.entries(kf).map(([p, keys]) => [p, keys?.map((k) => ({ ...k, t: k.t - dt }))])) : kf;
 
+/**
+ * [a, b) 구간을 모든 트랙에서 잘라내고 뒤를 당겨 붙인다 (무음 구간 잘라내기).
+ * 걸친 클립은 잘리고, 원본 위치·키프레임은 남은 부분을 따라간다. 잘린 조각이 MIN_CLIP보다 짧으면 버린다.
+ */
+export function rippleDelete(p: Project, a: number, b: number): Project {
+  const gap = b - a;
+  if (gap <= 0) return p;
+  const cut = (c: Clip): Clip[] => {
+    const end = clipEnd(c);
+    if (end <= a + 1e-6) return [c];
+    if (c.start >= b - 1e-6) return [{ ...c, start: c.start - gap }];
+    if (c.start >= a - 1e-6 && end <= b + 1e-6) return [];
+    const pieces: Clip[] = [];
+    const left = c.start < a;
+    // 자막이 무음 구간에 걸쳐 있으면 말이 끝난 자리(a)에서 끝낸다 (뒤에 같은 문장 조각이 남지 않게)
+    const right = end > b && !(c.caption && left);
+    // 가운데가 잘려 둘로 나뉘면 앞 조각의 전환·페이드아웃은 뺀다 (같은 원본끼리 이어지므로 그냥 컷)
+    if (left) pieces.push({ ...c, duration: a - c.start, fadeOut: right ? 0 : c.fadeOut, transition: right ? undefined : c.transition });
+    if (right) {
+      const off = b - c.start; // 남는 뒷부분이 원래 클립 안에서 시작하는 위치
+      pieces.push({ ...c, id: left ? uid("clp") : c.id, start: a, duration: end - b, in: c.in + off * c.speed, fadeIn: left ? 0 : c.fadeIn, keyframes: shiftKeys(c.keyframes, off) });
+    }
+    return pieces.filter((x) => x.duration >= MIN_CLIP);
+  };
+  return { ...p, tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.flatMap(cut) })) };
+}
+
 export function splitClip(p: Project, clipId: string, time: number): [Project, string | undefined] {
   const found = findClip(p, clipId);
   if (!found) return [p, undefined];

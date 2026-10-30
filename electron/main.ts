@@ -374,6 +374,36 @@ ipcMain.handle("caption:saveSrt", async (_e, srt: string, name: string) => {
   return r.filePath;
 });
 
+export interface SilenceRequest {
+  path: string;
+  start: number; // 원본 시각(초)
+  duration: number;
+  noiseDb: number; // 이보다 작으면 무음 (예: -35)
+  minDur: number; // 이 길이 이상 이어져야 무음 (초)
+}
+/** 무음 구간(원본 시각 기준, 분석 시작 = 0). silencedetect 결과를 ametadata로 파일에 받아 읽는다 */
+ipcMain.handle("silence:detect", async (_e, req: SilenceRequest) => {
+  const work = await mkdtemp(path.join(os.tmpdir(), "zapcut-sil-"));
+  try {
+    await run("ffmpeg", ["-v", "error", "-ss", dec3(req.start), "-t", dec3(req.duration), "-i", req.path, "-vn", "-af", `silencedetect=n=${Math.round(req.noiseDb)}dB:d=${dec3(req.minDur)},ametadata=mode=print:file=sil.txt`, "-f", "null", "-"], { cwd: work });
+    const text = await readFile(path.join(work, "sil.txt"), "utf8").catch(() => "");
+    const out: { start: number; end: number }[] = [];
+    let cur: number | undefined;
+    for (const raw of text.split(String.fromCharCode(10))) {
+      const line = raw.trim();
+      if (line.startsWith("lavfi.silence_start=")) cur = Number(line.slice("lavfi.silence_start=".length));
+      else if (line.startsWith("lavfi.silence_end=") && cur !== undefined) {
+        out.push({ start: cur, end: Number(line.slice("lavfi.silence_end=".length)) });
+        cur = undefined;
+      }
+    }
+    if (cur !== undefined) out.push({ start: cur, end: req.duration }); // 끝까지 무음
+    return out.filter((r) => r.end > r.start);
+  } finally {
+    await rm(work, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
 export interface TrackRequest {
   path: string;
   start: number; // 원본 시각(초)

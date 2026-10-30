@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { CaptionRequest, TrackRequest, UpdateStatus } from "./main";
+import type { CaptionRequest, SilenceRequest, TrackRequest, UpdateStatus } from "./main";
 
 const api = {
   pickMedia: (): Promise<string[]> => ipcRenderer.invoke("media:pick"),
@@ -58,6 +58,7 @@ const api = {
       ipcRenderer.removeListener("caption:progress", h);
     };
   },
+  detectSilence: (req: SilenceRequest): Promise<{ start: number; end: number }[]> => ipcRenderer.invoke("silence:detect", req),
   mlRead: (name: "yunet.onnx" | "ort.wasm"): Promise<Uint8Array> => ipcRenderer.invoke("ml:read", name),
   grabFrame: (file: string, time: number): Promise<Uint8Array> => ipcRenderer.invoke("frame:grab", file, time),
   trackRegion: (req: TrackRequest): Promise<{ boxes: { x: number; y: number; w: number; h: number }[]; lostAt?: number }> => ipcRenderer.invoke("track:run", req),

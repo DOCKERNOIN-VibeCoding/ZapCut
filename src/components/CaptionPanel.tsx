@@ -1,8 +1,9 @@
 // 텍스트 탭 > 자막: 자동 캡션 실행, 자막 목록 편집, SRT 내보내기
-import { Captions, Download } from "lucide-react";
+import { Captions, Download, Scissors } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CAPTION_LANGS, CAPTION_MODELS, toSrt } from "../core/captions";
 import { autoCaption, captionTargets } from "../editor/captions";
+import { DEFAULT_SILENCE, removeSilence, silenceTargets } from "../editor/silence";
 import { useEditor } from "../editor/store";
 import { shortTime } from "./format";
 
@@ -13,6 +14,7 @@ export function CaptionPanel() {
   const [lang, setLang] = useState("ko");
   const [model, setModel] = useState("large");
   const [have, setHave] = useState<string[]>([]);
+  const [sil, setSil] = useState(DEFAULT_SILENCE);
   const refresh = () => window.zapcut.captionModels().then(setHave).catch(() => undefined);
   useEffect(() => {
     refresh();
@@ -68,6 +70,30 @@ export function CaptionPanel() {
           }}
         >
           <Download size={14} /> SRT 내보내기
+        </button>
+      </div>
+      <h4 className="res-sub">무음 구간 잘라내기</h4>
+      <p className="muted small">
+        {silenceTargets(project, selection).length ? `${silenceTargets(project, selection).some((c) => selection.includes(c.id)) ? "선택한 클립" : "메인 트랙 영상"}의 말소리 사이 빈 구간을 찾아` : "메인 트랙에 소리 있는 영상을 놓으면 그 빈 구간을 찾아"} 모든 트랙(영상·소리·자막)에서 잘라내고 뒤를 당겨 붙입니다. 자동 캡션 뒤에 쓰면 자막도 함께 정리됩니다.
+      </p>
+      <div className="field">
+        <label>기준 음량</label>
+        <input type="range" min={-60} max={-15} step={1} value={sil.noiseDb} onChange={(e) => setSil({ ...sil, noiseDb: +e.target.value })} />
+        <span className="unit">{sil.noiseDb} dB</span>
+      </div>
+      <div className="field">
+        <label>최소 길이</label>
+        <input type="range" min={0.2} max={3} step={0.1} value={sil.minDur} onChange={(e) => setSil({ ...sil, minDur: +e.target.value })} />
+        <span className="unit">{sil.minDur.toFixed(1)}초</span>
+      </div>
+      <div className="field">
+        <label>앞뒤 여유</label>
+        <input type="range" min={0} max={0.5} step={0.05} value={sil.pad} onChange={(e) => setSil({ ...sil, pad: +e.target.value })} />
+        <span className="unit">{sil.pad.toFixed(2)}초</span>
+      </div>
+      <div className="cover-row">
+        <button className="primary-btn" disabled={!!busy || !silenceTargets(project, selection).length} onClick={() => removeSilence(sil)}>
+          <Scissors size={14} /> 무음 잘라내기
         </button>
       </div>
       <h4 className="res-sub">자막 목록 ({captions.length})</h4>
