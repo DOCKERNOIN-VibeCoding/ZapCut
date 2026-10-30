@@ -23,14 +23,46 @@ function loadSilence(): SilenceOptions {
     return DEFAULT_SILENCE;
   }
 }
+// 자동 캡션의 언어·모델 선택도 마지막 값을 기억한다 (목록에 없는 값은 기본값)
+const CAP_KEY = "zapcut.caption";
+function loadCaptionPrefs(): { language: string; modelId: string } {
+  const def = { language: "ko", modelId: "large" };
+  try {
+    const v = JSON.parse(localStorage.getItem(CAP_KEY) ?? "null") as Partial<typeof def> | null;
+    return {
+      language: CAPTION_LANGS.some((l) => l.id === v?.language) ? v!.language! : def.language,
+      modelId: CAPTION_MODELS.some((m) => m.id === v?.modelId) ? v!.modelId! : def.modelId,
+    };
+  } catch {
+    return def;
+  }
+}
+function saveCaptionPrefs(v: { language: string; modelId: string }) {
+  try {
+    localStorage.setItem(CAP_KEY, JSON.stringify(v));
+  } catch {
+    // 저장 공간을 쓸 수 없어도 이번 실행에서는 그대로 동작
+  }
+}
 const isDefaultSilence = (v: SilenceOptions) => (Object.keys(SIL_RANGE) as (keyof SilenceOptions)[]).every((k) => v[k] === DEFAULT_SILENCE[k]);
 
 export function CaptionPanel() {
   const project = useEditor((s) => s.project);
   const selection = useEditor((s) => s.selection);
   const busy = useEditor((s) => s.busy);
-  const [lang, setLang] = useState("ko");
-  const [model, setModel] = useState("large");
+  const [prefs, setPrefs] = useState(loadCaptionPrefs);
+  const lang = prefs.language;
+  const model = prefs.modelId;
+  const setLang = (language: string) => {
+    const next = { ...prefs, language };
+    setPrefs(next);
+    saveCaptionPrefs(next);
+  };
+  const setModel = (modelId: string) => {
+    const next = { ...prefs, modelId };
+    setPrefs(next);
+    saveCaptionPrefs(next);
+  };
   const [have, setHave] = useState<string[]>([]);
   const [sil, setSilRaw] = useState(loadSilence);
   const preview = useEditor((s) => s.silencePreview);
