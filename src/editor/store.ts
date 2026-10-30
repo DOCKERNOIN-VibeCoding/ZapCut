@@ -75,6 +75,9 @@ interface EditorState {
   toggleSnapping: () => void;
 
   busy?: string;
+  // 얼굴 찾기 결과 (화면 비율 0..1, 왼쪽 위 기준). 재생헤드가 움직이면 지운다
+  faceHits?: { t: number; clipId: string; faces: { x: number; y: number; w: number; h: number }[] };
+  setFaceHits: (v?: EditorState["faceHits"]) => void;
   setBusy: (v?: string) => void;
   importFiles: (paths: string[], opts?: { keepAspect?: boolean; names?: string[]; sticker?: boolean }) => Promise<MediaItem[]>;
   valueAt: (clip: Clip, prop: KfProp, T: number) => number;
@@ -154,7 +157,7 @@ export const useEditor = create<EditorState>((set, get) => {
     notify: (text, kind = "info") => set({ toast: { text, kind, at: Date.now() } }),
 
     select: (ids) => set({ selection: ids }),
-    setPlayhead: (t) => set({ playhead: Math.max(0, t) }),
+    setPlayhead: (t) => set((st) => ({ playhead: Math.max(0, t), faceHits: st.faceHits && Math.abs(st.faceHits.t - t) > 1e-3 ? undefined : st.faceHits })),
     setPlaying: (v) => set({ playing: v }),
     setZoom: (z) => set({ zoom: Math.min(400, Math.max(4, z)) }),
     setTab: (t) => set({ resourceTab: t }),
@@ -165,6 +168,7 @@ export const useEditor = create<EditorState>((set, get) => {
     toggleSnapping: () => set({ snapping: !get().snapping }),
 
     setBusy: (v) => set({ busy: v }),
+    setFaceHits: (v) => set({ faceHits: v }),
     importFiles: async (paths, opts = {}) => {
       const added: MediaItem[] = [];
       set({ importing: get().importing + paths.length });

@@ -113,6 +113,9 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 /* 무대 크기 안에서 프로젝트 비율(--ar)을 유지하며 가장 크게 */
 .canvas-wrap { position: relative; width: min(100cqw - 24px, (100cqh - 24px) * var(--ar)); aspect-ratio: var(--ar); }
 .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; }
+.face-hit { position: absolute; border: 2px dashed #ffd84d; border-radius: 8px; background: rgba(255, 216, 77, 0.12); cursor: pointer; z-index: 2; }
+.face-hit:hover { background: rgba(255, 216, 77, 0.3); border-style: solid; }
+.face-bar { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 6px; z-index: 3; }
 .transform-box { position: absolute; border: 1.5px solid var(--accent); cursor: move; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4); }
 .handle { position: absolute; width: 10px; height: 10px; background: #fff; border: 1.5px solid var(--accent); border-radius: 50%; }
 .handle.nw { left: -6px; top: -6px; cursor: nwse-resize; }

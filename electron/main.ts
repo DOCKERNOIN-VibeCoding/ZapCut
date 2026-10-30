@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import { createReadStream, existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -269,6 +269,25 @@ ipcMain.handle("export:start", async (e, project: Project, settings: ExportSetti
 
 ipcMain.handle("export:cancel", () => exportAbort?.abort());
 
+// 얼굴 찾기에 쓰는 파일 (정해진 것만)
+// 모델: 설치본 resources/ml, 개발 ml/. WASM 런타임: Vite가 dist/assets에 넣은 것 (개발 중에는 node_modules)
+ipcMain.handle("ml:read", async (_e, name: "yunet.onnx" | "ort.wasm") => {
+  if (name === "yunet.onnx") return readFile(app.isPackaged ? path.join(process.resourcesPath, "ml", "face_detection_yunet_2023mar.onnx") : path.join(__dirname, "../ml/face_detection_yunet_2023mar.onnx"));
+  if (name !== "ort.wasm") throw new Error(`알 수 없는 파일: ${name}`);
+  const assets = path.join(__dirname, "../dist/assets");
+  const built = existsSync(assets) ? (await readdir(assets)).find((f) => /^ort-wasm-simd-threaded-.*\.wasm$/.test(f)) : undefined;
+  return readFile(built ? path.join(assets, built) : path.join(__dirname, "../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm"));
+});
+
+/** 얼굴 찾기용 한 프레임: 긴 변을 640에 맞춰 왼쪽 위에 놓은 640×640 BGR (YuNet 입력) */
+ipcMain.handle("frame:grab", async (_e, file: string, time: number) => {
+  // 사진은 -ss 0을 주면 프레임이 나오지 않으므로 시각이 있을 때만 탐색한다
+  const seek = time > 0 ? ["-ss", String(time)] : [];
+  const { stdout } = await run("ffmpeg", ["-v", "error", ...seek, "-i", file, "-frames:v", "1", "-vf", "scale=640:640:force_original_aspect_ratio=decrease,pad=640:640:0:0:color=black", "-f", "rawvideo", "-pix_fmt", "bgr24", "pipe:1"]);
+  if (stdout.length < 640 * 640 * 3) throw new Error("프레임을 읽지 못했습니다");
+  return stdout.subarray(0, 640 * 640 * 3);
+});
+
 export interface TrackRequest {
   path: string;
   start: number; // 원본 시각(초)
@@ -332,6 +351,7 @@ const LICENSE_FILES: Record<string, [string, string]> = {
   pretendard: ["licenses/fonts/Pretendard-OFL.txt", "licenses/fonts/Pretendard-OFL.txt"],
   bebas: ["licenses/fonts/BebasNeue-OFL.txt", "licenses/fonts/BebasNeue-OFL.txt"],
   pacifico: ["licenses/fonts/Pacifico-OFL.txt", "licenses/fonts/Pacifico-OFL.txt"],
+  yunet: ["licenses/YuNet-LICENSE.txt", "licenses/YuNet-LICENSE.txt"],
 };
 ipcMain.handle("license:open", (_e, key: string) => {
   const rel = LICENSE_FILES[key];

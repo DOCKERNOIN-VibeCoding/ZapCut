@@ -5,6 +5,7 @@ import { hasMask } from "../core/mask";
 import { volumeExpr } from "../core/motion";
 import { canvasSize, clipEnd, findClip, projectDuration, RATIOS } from "../core/timeline";
 import type { Clip, MediaItem, Project } from "../core/types";
+import { coverFaces } from "../editor/faces";
 import { mediaUrl, useEditor } from "../editor/store";
 import { Compositor, type LayerBox } from "../preview/compositor";
 import { frameAt, type Frame } from "../preview/frame";
@@ -112,6 +113,7 @@ export function Player() {
   const playing = useEditor((s) => s.playing);
   const playhead = useEditor((s) => s.playhead);
   const selection = useEditor((s) => s.selection);
+  const faceHits = useEditor((s) => s.faceHits);
   const [overlay, setOverlay] = useState<LayerBox & { k: number } | null>(null);
   const [glError, setGlError] = useState<string>();
   const total = projectDuration(project);
@@ -322,6 +324,21 @@ export function Player() {
         <div className="canvas-wrap" style={{ "--ar": project.width / project.height } as React.CSSProperties}>
           <canvas ref={canvasRef} width={size.w} height={size.h} />
           {glError && <div className="gl-error">미리보기를 시작할 수 없습니다: {glError}</div>}
+          {faceHits && (
+            <div onPointerDown={(e) => e.stopPropagation()}>
+              {faceHits.faces.map((f, i) => (
+                <button key={i} className="face-hit" style={{ left: `${f.x * 100}%`, top: `${f.y * 100}%`, width: `${f.w * 100}%`, height: `${f.h * 100}%` }} title="이 얼굴 가리기" onClick={() => coverFaces([i])} />
+              ))}
+              <div className="face-bar">
+                <button className="primary-btn" onClick={() => coverFaces(faceHits.faces.map((_, i) => i))}>
+                  모든 얼굴 가리기 ({faceHits.faces.length})
+                </button>
+                <button className="ghost-btn" onClick={() => useEditor.getState().setFaceHits(undefined)}>
+                  닫기
+                </button>
+              </div>
+            </div>
+          )}
           {showBox && (
             <div
               className="transform-box"

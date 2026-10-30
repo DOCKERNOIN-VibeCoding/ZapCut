@@ -1,4 +1,4 @@
-import { EyeOff, Film, FolderOpen, Image as ImageIcon, LayoutTemplate, Music, Plus, Shuffle, Sliders, Sparkles, Sticker, Trash2, Type, Wand2, Play } from "lucide-react";
+import { EyeOff, Film, ScanFace, FolderOpen, Image as ImageIcon, LayoutTemplate, Music, Plus, Shuffle, Sliders, Sparkles, Sticker, Trash2, Type, Wand2, Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FILTER_CATEGORIES, FILTER_PRESETS, presetSwatch } from "../core/color";
 import { EFFECT_CATEGORIES, EFFECTS } from "../core/effects";
@@ -6,6 +6,7 @@ import { clipEnd, findClip } from "../core/timeline";
 import { adjacentPairs, DEFAULT_TRANSITION_DURATION, TRANSITION_CATEGORIES, TRANSITIONS } from "../core/transitions";
 import type { Clip, MediaItem } from "../core/types";
 import { addSound, addSticker, applyTemplate } from "../editor/actions";
+import { findFaces } from "../editor/faces";
 import { mediaUrl, useEditor, type ResourceTab } from "../editor/store";
 import { SOUNDS } from "../library/sounds";
 import { STICKER_CATEGORIES, STICKERS } from "../library/stickers";
@@ -284,6 +285,9 @@ export function ResourcePanel() {
                   <EyeOff size={13} /> {c.name}
                 </button>
               ))}
+              <button className="chip" onClick={() => findFaces()} title="재생헤드 화면에서 얼굴을 찾습니다. 찾은 얼굴을 누르면 모자이크로 가리고 끝까지 따라갑니다">
+                <ScanFace size={13} /> 얼굴 찾기
+              </button>
             </div>
             <p className="muted small">누르면 재생헤드 위치의 효과 트랙에 3초짜리 효과가 놓입니다. 그 아래 모든 화면에 적용되며, 속성 패널의 '영역' 탭에서 일부만 적용할 수도 있습니다.</p>
             <Categorized

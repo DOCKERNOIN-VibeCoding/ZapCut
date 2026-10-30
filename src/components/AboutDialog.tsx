@@ -13,6 +13,8 @@ const CREDITS: { name: string; use: string; license: string; key: string; url: s
   { name: "zustand", use: "편집 상태 관리", license: "MIT", key: "thirdParty", url: "https://github.com/pmndrs/zustand" },
   { name: "Lucide", use: "아이콘", license: "ISC", key: "thirdParty", url: "https://lucide.dev" },
   { name: "electron-updater", use: "자동 업데이트", license: "MIT", key: "thirdParty", url: "https://www.electron.build/auto-update" },
+  { name: "ONNX Runtime Web", use: "얼굴 찾기 모델 실행", license: "MIT", key: "thirdParty", url: "https://onnxruntime.ai" },
+  { name: "YuNet", use: "얼굴 찾기 모델 (OpenCV Zoo)", license: "MIT", key: "yunet", url: "https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet" },
   { name: "Pretendard", use: "글꼴", license: "OFL 1.1", key: "pretendard", url: "https://github.com/orioncactus/pretendard" },
   { name: "Bebas Neue", use: "글꼴", license: "OFL 1.1", key: "bebas", url: "https://github.com/dharmatype/Bebas-Neue" },
   { name: "Pacifico", use: "글꼴", license: "OFL 1.1", key: "pacifico", url: "https://github.com/googlefonts/Pacifico" },
