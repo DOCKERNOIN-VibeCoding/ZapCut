@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { UpdateStatus } from "./main";
+import type { TrackRequest, UpdateStatus } from "./main";
 
 const api = {
   pickMedia: (): Promise<string[]> => ipcRenderer.invoke("media:pick"),
@@ -46,6 +46,14 @@ const api = {
     };
   },
   installUpdate: () => ipcRenderer.invoke("update:install"),
+  trackRegion: (req: TrackRequest): Promise<{ boxes: { x: number; y: number; w: number; h: number }[]; lostAt?: number }> => ipcRenderer.invoke("track:run", req),
+  onTrackProgress: (fn: (v: number) => void) => {
+    const h = (_e: unknown, v: number) => fn(v);
+    ipcRenderer.on("track:progress", h);
+    return () => {
+      ipcRenderer.removeListener("track:progress", h);
+    };
+  },
   checkUpdate: (): Promise<{ state: "dev" | "latest" } | { state: "available"; version: string } | { state: "error"; message: string }> => ipcRenderer.invoke("update:check"),
   openLicense: (key: string): Promise<string> => ipcRenderer.invoke("license:open", key),
 };

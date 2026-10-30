@@ -1,4 +1,4 @@
-import { Diamond, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Rewind, Snowflake, X } from "lucide-react";
+import { Crosshair, Diamond, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Rewind, Snowflake, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { findFilter } from "../core/color";
 import { defaultParams, findEffect } from "../core/effects";
@@ -10,6 +10,7 @@ import { findTransition, TRANSITIONS } from "../core/transitions";
 import { DEFAULT_ADJUST, DEFAULT_CANVAS, DEFAULT_CHROMA, DEFAULT_CROP, DEFAULT_MASK, DEFAULT_TRANSFORM, type Adjust, type BlendMode, type Clip, type KfProp, type MaskType, type TextStyle } from "../core/types";
 import { freezeFrame, importLut, reverseClip } from "../editor/actions";
 import { useEditor } from "../editor/store";
+import { trackRegion } from "../editor/tracking";
 
 type Edit = (fn: (c: Clip) => Clip, transient?: boolean) => void;
 
@@ -256,6 +257,11 @@ function MaskSection({ clip, edit, area = false }: { clip: Clip; edit: Edit; are
           <label className="check">
             <input type="checkbox" checked={m.invert} onChange={(e) => set({ invert: e.target.checked })} /> 반전
           </label>
+          {area && (
+            <button className="primary-btn track-btn" onClick={() => trackRegion(clip.id)} title="재생헤드 시점에 영역을 대상(얼굴 등) 위에 맞춘 뒤 누르세요">
+              <Crosshair size={14} /> 대상 따라가기
+            </button>
+          )}
           <p className="muted small">{area ? "미리보기에서 상자를 끌어 옮기고 모서리로 크기를 바꿀 수 있습니다. ◆ 키프레임을 넣으면 영역이 시간에 따라 움직입니다." : "◆ 를 눌러 키프레임을 넣으면 마스크가 시간에 따라 움직입니다."}</p>
         </>
       )}

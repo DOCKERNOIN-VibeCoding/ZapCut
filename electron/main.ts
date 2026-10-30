@@ -9,6 +9,7 @@ import { parseCube } from "../src/core/color";
 import { buildExportPlan, FILTER_PLACEHOLDER, type ExportAssets, type ExportSettings } from "../src/core/exportPlan";
 import type { MediaItem, Project } from "../src/core/types";
 import { SOUNDS } from "../src/library/sounds";
+import { trackBox, type Box } from "../src/core/track";
 import { encoders, extractFrame, makeProxy, needsProxy, probe, reverseRange, run, thumbnails, waveform } from "./ffmpeg";
 
 protocol.registerSchemesAsPrivileged([
@@ -267,6 +268,29 @@ ipcMain.handle("export:start", async (e, project: Project, settings: ExportSetti
 });
 
 ipcMain.handle("export:cancel", () => exportAbort?.abort());
+
+export interface TrackRequest {
+  path: string;
+  start: number; // 원본 시각(초)
+  duration: number; // 원본 길이(초)
+  fps: number; // 원본 기준 분석 프레임 수/초
+  srcW: number;
+  srcH: number;
+  box: Box; // 원본 크기 대비 0..1
+}
+/** 영역 추적: 원본을 작은 흑백 프레임으로 뽑아 상자를 따라간다. 결과 상자도 원본 대비 0..1 */
+ipcMain.handle("track:run", async (e, req: TrackRequest) => {
+  const even = (v: number) => Math.max(2, Math.round(v / 2) * 2);
+  const aw = even(Math.min(480, req.srcW));
+  const ah = even((aw * req.srcH) / req.srcW);
+  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", String(req.start), "-t", String(req.duration), "-i", req.path, "-vf", `fps=${req.fps},scale=${aw}:${ah},format=gray`, "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]);
+  const size = aw * ah;
+  const frames: Uint8Array[] = [];
+  for (let o = 0; o + size <= stdout.length; o += size) frames.push(new Uint8Array(stdout.buffer, stdout.byteOffset + o, size));
+  if (!frames.length) throw new Error("영상에서 프레임을 읽지 못했습니다");
+  const r = trackBox(frames, aw, ah, { x: req.box.x * aw, y: req.box.y * ah, w: req.box.w * aw, h: req.box.h * ah }, (done) => e.sender.send("track:progress", done / frames.length));
+  return { boxes: r.boxes.map((b) => ({ x: b.x / aw, y: b.y / ah, w: b.w / aw, h: b.h / ah })), lostAt: r.lostAt };
+});
 ipcMain.handle("shell:showItem", (_e, p: string) => shell.showItemInFolder(p));
 
 export type UpdateStatus = { state: "downloading"; version: string; percent: number } | { state: "ready"; version: string };
