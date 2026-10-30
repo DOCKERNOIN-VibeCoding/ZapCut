@@ -5,6 +5,7 @@ import { duoColor, findEffect, defaultParams } from "../core/effects";
 import { compile } from "../core/expr";
 import { hasMask, maskExpr } from "../core/mask";
 import { renderText } from "../core/textRender";
+import { renderTitle, titleTiming } from "../core/titles";
 import { transitionRect } from "../core/transitions";
 import type { BlendMode, Clip, Mask } from "../core/types";
 import type { Frame, LayerDraw } from "./frame";
@@ -28,6 +29,13 @@ export interface LayerBox {
   h: number;
   rot: number;
 }
+
+const titleKeys = new WeakMap<object, string>();
+const titleKey = (t: object) => {
+  let k = titleKeys.get(t);
+  if (!k) titleKeys.set(t, (k = JSON.stringify(t)));
+  return k;
+};
 
 export class Compositor {
   gl: WebGL2RenderingContext;
@@ -189,7 +197,20 @@ export class Compositor {
     let key: string;
     let src: TexImageSource | undefined;
     let dynamic = false;
-    if (clip.kind === "text" && clip.text) {
+    if (clip.kind === "text" && clip.title) {
+      // 타이틀: 움직이는 구간에서만 프레임마다(1/60초) 다시 그린다
+      const { inEnd, outStart, loop } = titleTiming(clip.title, clip.duration);
+      const T = Math.min(clip.duration, Math.max(0, layer.T));
+      const frame = loop || T < inEnd || T >= outStart ? Math.round(T * 60) : "S";
+      key = `${titleKey(clip.title)}|${this.H}|${clip.duration}|${frame}`;
+      let entry = this.textCanvas.get(clip.id);
+      if (!entry || entry.key !== key) {
+        const canvas = renderTitle(clip.title, frame === "S" ? inEnd : T, clip.duration, this.H, entry?.canvas);
+        entry = { canvas, key };
+        this.textCanvas.set(clip.id, entry);
+      }
+      src = entry.canvas;
+    } else if (clip.kind === "text" && clip.text) {
       const fraction = layer.m.typing < 1 ? Math.floor(layer.m.typing * 200) / 200 : 1;
       key = `${JSON.stringify(clip.text)}|${this.H}|${fraction}`;
       let entry = this.textCanvas.get(clip.id);

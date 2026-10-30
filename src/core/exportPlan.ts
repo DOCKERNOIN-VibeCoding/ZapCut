@@ -159,13 +159,15 @@ function buildLayer(c: Ctx, clip: Clip, T0: number, len: number, tOut: number): 
       const k = g.input(["-loop", "1", "-framerate", String(s.fps), "-t", String(n(len)), "-i", asset.frames[0].file]);
       src = `[${k}:v]`;
     } else {
-      const parts = asset.frames.map((fr) => {
-        const k = g.input(["-loop", "1", "-framerate", String(s.fps), "-t", String(n(Math.max(1 / s.fps, fr.to - fr.from))), "-i", fr.file]);
-        return `[${k}:v]`;
-      });
-      const l = g.label("tw");
-      g.add(`${parts.join("")}concat=n=${parts.length}:v=1:a=0[${l}]`);
-      src = `[${l}]`;
+      // 여러 장(타자기·타이틀): 목록 파일 하나를 입력으로 (장마다 입력을 열면 타이틀은 수백 개가 된다)
+      const esc = (f: string) => `'${f.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`;
+      const lines = ["ffconcat version 1.0", ...asset.frames.flatMap((fr) => [`file ${esc(fr.file)}`, `duration ${n(Math.max(1e-3, fr.to - fr.from))}`])];
+      lines.push(`file ${esc(asset.frames[asset.frames.length - 1].file)}`); // 마지막 장 길이가 적용되도록 한 번 더
+      const list = `seq_${clip.id}.txt`;
+      g.files.push({ name: list, content: lines.join("\n") });
+      const k = g.input(["-f", "concat", "-safe", "0", "-i", list]);
+      src = `[${k}:v]`;
+      chain.push(`fps=${s.fps}`, `trim=duration=${n(len)}`);
     }
     chain.push("format=rgba");
   } else {

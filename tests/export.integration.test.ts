@@ -136,6 +136,20 @@ describe.skipIf(!hasFfmpeg)("ffmpeg 내보내기", () => {
     }
   }, 300000);
 
+  it("여러 장 텍스트(타이틀·타자기): 장마다 정해진 시간에 바뀐다", () => {
+    const red = path.join(dir, "seq_red.png");
+    const blue = path.join(dir, "seq_blue.png");
+    execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", red]);
+    execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", blue]);
+    let p = mainProject({ ...clipFromMedia(mi, 0), duration: 3 });
+    const t = { ...textClip(0), duration: 3, transform: { ...DEFAULT_TRANSFORM, y: 0 } };
+    p = placeClip(p, t);
+    const frames = [{ file: red, from: 0, to: 1 }, { file: blue, from: 1, to: 3 }];
+    const r = render(p, { text: { [t.id]: { w: 64, h: 64, frames } } }, 360);
+    expect(pixel(r.out, 0.5)[0]).toBeGreaterThan(200);
+    expect(pixel(r.out, 2.0)[2]).toBeGreaterThan(200);
+  }, 60000);
+
   it("효과: 모든 효과가 렌더링된다", () => {
     for (const def of EFFECTS) {
       let p = mainProject({ ...clipFromMedia(mv, 0), duration: 2 });

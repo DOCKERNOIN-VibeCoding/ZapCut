@@ -11,8 +11,10 @@ import { SOUNDS } from "../library/sounds";
 import { STICKER_CATEGORIES, STICKERS } from "../library/stickers";
 import { TEMPLATE_CATEGORIES, TEMPLATES } from "../library/templates";
 import { TEXT_TEMPLATE_CATEGORIES, TEXT_TEMPLATES } from "../library/textTemplates";
+import { TITLE_CATEGORIES, TITLE_TEMPLATES } from "../library/titleTemplates";
 import { shortTime } from "./format";
 import { MEDIA_DND, TRANSITION_DND } from "./Timeline";
+import { TitleThumb } from "./TitleThumb";
 import { TransitionThumb } from "./TransitionThumb";
 
 const TABS: { id: ResourceTab; label: string; icon: React.ReactNode }[] = [
@@ -88,7 +90,7 @@ export function ResourcePanel() {
   const importing = useEditor((s) => s.importing);
   const [dragOver, setDragOver] = useState(false);
   const [audioTab, setAudioTab] = useState<"mine" | "sfx" | "bgm">("sfx");
-  const [textTab, setTextTab] = useState<"template" | "basic">("template");
+  const [textTab, setTextTab] = useState<"template" | "title" | "basic">("template");
   const visibleMedia = useMemo(() => media.filter((m) => !m.sticker), [media]);
 
   const importDialog = async () => {
@@ -195,11 +197,27 @@ export function ResourcePanel() {
               <button className={textTab === "template" ? "on" : ""} onClick={() => setTextTab("template")}>
                 텍스트 템플릿
               </button>
+              <button className={textTab === "title" ? "on" : ""} onClick={() => setTextTab("title")}>
+                타이틀 템플릿
+              </button>
               <button className={textTab === "basic" ? "on" : ""} onClick={() => setTextTab("basic")}>
                 기본
               </button>
             </div>
-            {textTab === "basic" ? (
+            {textTab === "title" ? (
+              <Categorized
+                categories={TITLE_CATEGORIES}
+                items={TITLE_TEMPLATES}
+                cat={(t) => t.category}
+                className="title-grid"
+                render={(t) => (
+                  <button key={t.id} className="title-preset" onClick={() => useEditor.getState().addTitle(t)} title="재생헤드 위치에 넣기 (마우스를 올리면 미리보기)">
+                    <TitleThumb def={t} />
+                    <small>{t.name}</small>
+                  </button>
+                )}
+              />
+            ) : textTab === "basic" ? (
               <div className="resource-head">
                 <button className="primary-btn" onClick={() => useEditor.getState().addText()}>
                   <Plus size={15} /> 기본 텍스트 추가

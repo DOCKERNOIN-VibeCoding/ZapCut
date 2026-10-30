@@ -22,6 +22,8 @@ import { defaultParams, findEffect } from "../core/effects";
 import { keyframeValue } from "../core/motion";
 import { upgradeProject, type Clip, type KfProp, type Keyframe, type MediaItem, type Project, type Track, type Transition } from "../core/types";
 import type { TextTemplate } from "../library/textTemplates";
+import type { TitleTemplate } from "../library/titleTemplates";
+import { instantiateTitle, titleLabel } from "../core/titles";
 
 /** T 근처 키가 있으면 값을 바꾸고, 없으면 새로 넣는다 */
 function upsertKey(keys: Keyframe[], T: number, v: number): Keyframe[] {
@@ -82,6 +84,7 @@ interface EditorState {
   addEffect: (effectId: string) => void;
   addAdjustLayer: () => void;
   applyTextTemplate: (t: TextTemplate) => void;
+  addTitle: (t: TitleTemplate) => void;
   addMediaToTimeline: (mediaId: string, start?: number, trackId?: string) => void;
   addText: (content?: string, patch?: Partial<Clip["text"]>) => void;
   updateClip: (id: string, fn: (c: Clip) => Clip) => void;
@@ -360,6 +363,15 @@ export const useEditor = create<EditorState>((set, get) => {
       c.animLoop = tt.animLoop;
       c.duration = tt.duration ?? 3;
       c.transform = { ...c.transform, y: tt.y ?? 0.3 };
+      get().commit((p) => placeClip(p, c));
+      set({ selection: [c.id] });
+    },
+    addTitle: (tt) => {
+      const title = { ...instantiateTitle(tt), templateId: tt.id };
+      const c = textClip(get().playhead, titleLabel(title));
+      c.title = title;
+      c.duration = tt.duration ?? 4;
+      c.transform = { ...c.transform, y: tt.y ?? 0 };
       get().commit((p) => placeClip(p, c));
       set({ selection: [c.id] });
     },

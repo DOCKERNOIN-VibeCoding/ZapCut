@@ -1,4 +1,5 @@
 // 짭컷 프로젝트 데이터 모델. 시간 단위는 모두 초(second).
+import type { Title } from "./titles";
 
 export type MediaKind = "video" | "audio" | "image";
 
@@ -144,6 +145,7 @@ export interface Clip {
   transform: Transform;
   adjust: Adjust;
   text?: TextStyle;
+  title?: Title & { templateId: string }; // 타이틀 템플릿 (kind === "text", text.content는 타임라인 표시용)
   // 2단계
   keyframes?: Partial<Record<KfProp, Keyframe[]>>;
   animIn?: AnimRef;

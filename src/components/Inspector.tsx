@@ -4,6 +4,7 @@ import { findFilter } from "../core/color";
 import { defaultParams, findEffect } from "../core/effects";
 import { IN_ANIMS, LOOP_ANIMS, OUT_ANIMS, findAnim } from "../core/motion";
 import { canvasSize, findClip, mapClip, MIN_CLIP, setSpeed, tierLabel, TIERS } from "../core/timeline";
+import { titleLabel } from "../core/titles";
 import { findTransition, TRANSITIONS } from "../core/transitions";
 import { DEFAULT_ADJUST, DEFAULT_CANVAS, DEFAULT_CHROMA, DEFAULT_CROP, DEFAULT_MASK, DEFAULT_TRANSFORM, type Adjust, type BlendMode, type Clip, type KfProp, type MaskType, type TextStyle } from "../core/types";
 import { freezeFrame, importLut, reverseClip } from "../editor/actions";
@@ -416,6 +417,28 @@ function useFonts(current: string) {
   return all.includes(current) ? all : [current, ...all];
 }
 
+/** 타이틀: 레이어별 문구 (배치·애니메이션은 템플릿 그대로) */
+function TitleSection({ clip, edit }: { clip: Clip; edit: Edit }) {
+  const layers = clip.title!.layers.filter((l) => l.text);
+  const setText = (id: string, content: string) =>
+    edit((c) => {
+      const title = { ...c.title!, layers: c.title!.layers.map((l) => (l.id === id && l.text ? { ...l, text: { ...l.text, content } } : l)) };
+      return { ...c, title, text: { ...c.text!, content: titleLabel(title) } };
+    });
+  return (
+    <section>
+      <h4>타이틀</h4>
+      {layers.map((l) => (
+        <div className="field" key={l.id}>
+          <label>{l.text!.label}</label>
+          <textarea className="text-input" rows={Math.max(1, l.text!.content.split("\n").length)} value={l.text!.content} onChange={(e) => setText(l.id, e.target.value)} />
+        </div>
+      ))}
+      <p className="muted small">등장·퇴장 애니메이션은 클립 길이를 바꿔도 처음과 끝에 그대로 유지됩니다.</p>
+    </section>
+  );
+}
+
 function TextSection({ clip, edit }: { clip: Clip; edit: Edit }) {
   const t = clip.text!;
   const set = (patch: Partial<TextStyle>, tr = false) => edit((c) => ({ ...c, text: { ...c.text!, ...patch } }), tr);
@@ -565,7 +588,9 @@ export function Inspector() {
   };
   const isMain = !!track.main;
   const tabs: { id: string; label: string }[] =
-    clip.kind === "text"
+    clip.kind === "text" && clip.title
+      ? [{ id: "main", label: "타이틀" }, { id: "transform", label: "화면" }]
+      : clip.kind === "text"
       ? [{ id: "main", label: "텍스트" }, { id: "transform", label: "화면" }, { id: "anim", label: "애니메이션" }]
       : clip.kind === "audio"
         ? [{ id: "main", label: "오디오" }, { id: "speed", label: "속도" }]
@@ -592,7 +617,7 @@ export function Inspector() {
         ))}
       </div>
       <div className="inspector-body">
-        {active === "main" && clip.kind === "text" && <TextSection clip={clip} edit={edit} />}
+        {active === "main" && clip.kind === "text" && (clip.title ? <TitleSection clip={clip} edit={edit} /> : <TextSection clip={clip} edit={edit} />)}
         {active === "main" && clip.kind === "audio" && <AudioSection clip={clip} edit={edit} />}
         {active === "main" && clip.kind === "effect" && <EffectSection clip={clip} edit={edit} />}
         {active === "main" && clip.kind === "adjust" && <AdjustSection clip={clip} edit={edit} />}
