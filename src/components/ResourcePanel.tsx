@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { FILTER_CATEGORIES, FILTER_PRESETS, presetSwatch } from "../core/color";
 import { EFFECT_CATEGORIES, EFFECTS } from "../core/effects";
 import { clipEnd, findClip } from "../core/timeline";
-import { DEFAULT_TRANSITION_DURATION, TRANSITION_CATEGORIES, TRANSITIONS } from "../core/transitions";
-import type { MediaItem } from "../core/types";
+import { adjacentPairs, DEFAULT_TRANSITION_DURATION, TRANSITION_CATEGORIES, TRANSITIONS } from "../core/transitions";
+import type { Clip, MediaItem } from "../core/types";
 import { addSound, addSticker, applyTemplate } from "../editor/actions";
 import { mediaUrl, useEditor, type ResourceTab } from "../editor/store";
 import { SOUNDS } from "../library/sounds";
@@ -12,7 +12,8 @@ import { STICKER_CATEGORIES, STICKERS } from "../library/stickers";
 import { TEMPLATE_CATEGORIES, TEMPLATES } from "../library/templates";
 import { TEXT_TEMPLATE_CATEGORIES, TEXT_TEMPLATES } from "../library/textTemplates";
 import { shortTime } from "./format";
-import { MEDIA_DND } from "./Timeline";
+import { MEDIA_DND, TRANSITION_DND } from "./Timeline";
+import { TransitionThumb } from "./TransitionThumb";
 
 const TABS: { id: ResourceTab; label: string; icon: React.ReactNode }[] = [
   { id: "media", label: "미디어", icon: <Film size={17} /> },
@@ -66,15 +67,18 @@ function Categorized<T>({ categories, items, cat, render, className = "preset-gr
   );
 }
 
-/** 전환을 넣을 메인 트랙 클립: 선택한 클립, 없으면 재생헤드에 가장 가까운 컷 */
-function transitionTarget() {
+/**
+ * 전환을 넣을 컷(앞 클립). 선택한 클립이 있는 영상 트랙, 없으면 메인 트랙에서 고른다.
+ * 선택한 클립이 컷 앞이면 그 컷, 아니면 재생헤드에 가장 가까운 컷. all이면 그 트랙의 모든 컷.
+ */
+function transitionTargets(all: boolean): Clip[] {
   const s = useEditor.getState();
-  const main = s.project.tracks.find((t) => t.main);
-  if (!main || main.clips.length < 2) return undefined;
-  const clips = [...main.clips].sort((a, b) => a.start - b.start).slice(0, -1);
-  const sel = clips.find((c) => s.selection.includes(c.id));
-  if (sel) return sel;
-  return clips.reduce((best, c) => (Math.abs(clipEnd(c) - s.playhead) < Math.abs(clipEnd(best) - s.playhead) ? c : best), clips[0]);
+  const track = s.project.tracks.find((t) => t.kind === "video" && t.clips.some((c) => s.selection.includes(c.id))) ?? s.project.tracks.find((t) => t.main);
+  const cuts = track ? adjacentPairs(track).map(([a]) => a) : [];
+  if (all || !cuts.length) return cuts;
+  const sel = cuts.find((c) => s.selection.includes(c.id));
+  if (sel) return [sel];
+  return [cuts.reduce((best, c) => (Math.abs(clipEnd(c) - s.playhead) < Math.abs(clipEnd(best) - s.playhead) ? c : best))];
 }
 
 export function ResourcePanel() {
@@ -108,10 +112,8 @@ export function ResourcePanel() {
   };
   const applyTransition = (id: string, all = false) => {
     const s = useEditor.getState();
-    const main = s.project.tracks.find((t) => t.main);
-    if (!main || main.clips.length < 2) return s.notify("전환은 메인 트랙의 두 클립 사이에 들어갑니다. 클립을 두 개 이상 놓으세요");
-    const sorted = [...main.clips].sort((a, b) => a.start - b.start);
-    const targets = all ? sorted.slice(0, -1) : [transitionTarget()!];
+    const targets = transitionTargets(all);
+    if (!targets.length) return s.notify("전환은 같은 트랙에서 붙어 있는 두 영상/사진 클립 사이에 들어갑니다");
     s.commit((p) => ({ ...p, tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.map((c) => (targets.some((x) => x.id === c.id) ? { ...c, transition: { id, duration: c.transition?.duration ?? DEFAULT_TRANSITION_DURATION } } : c)) })) }));
     if (!all) s.notify(`전환 적용: ${TRANSITIONS.find((t) => t.id === id)?.name}`);
   };
@@ -269,16 +271,25 @@ export function ResourcePanel() {
 
         {tab === "transition" && (
           <>
-            <p className="muted small">선택한 메인 트랙 클립 뒤(선택이 없으면 재생헤드에서 가장 가까운 컷)에 들어갑니다. 길이는 속성 패널에서 바꿀 수 있습니다.</p>
+            <p className="muted small">타임라인의 컷(+)이나 트랙 위로 끌어다 놓으면 그 자리에 들어갑니다. 누르면 선택한 클립 뒤(선택이 없으면 메인 트랙에서 재생헤드와 가장 가까운 컷)에 들어갑니다. 길이는 속성 패널에서 바꿀 수 있습니다.</p>
             <Categorized
               categories={TRANSITION_CATEGORIES}
               items={TRANSITIONS}
               cat={(t) => t.category}
               render={(t) => (
-                <div key={t.id} className="fx-preset">
-                  <button className={`tr-icon tr-${t.id}`} onClick={() => applyTransition(t.id)} title="적용">
-                    <span className="tr-a" />
-                    <span className="tr-b" />
+                <div
+                  key={t.id}
+                  className="fx-preset"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(TRANSITION_DND, t.id);
+                    e.dataTransfer.effectAllowed = "copy";
+                    document.body.classList.add("dragging-transition");
+                  }}
+                  onDragEnd={() => document.body.classList.remove("dragging-transition")}
+                >
+                  <button className="tr-icon" onClick={() => applyTransition(t.id)} title="누르면 적용, 타임라인의 컷으로 끌어다 놓아도 됩니다">
+                    <TransitionThumb kind={t.kind} />
                   </button>
                   <small>{t.name}</small>
                   <button className="link tiny" onClick={() => applyTransition(t.id, true)}>

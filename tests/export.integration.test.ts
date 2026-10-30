@@ -103,6 +103,39 @@ describe.skipIf(!hasFfmpeg)("ffmpeg 내보내기", () => {
     expect(mid[2]).toBeGreaterThan(60);
   }, 60000);
 
+  /** 파란 메인 위 오버레이 트랙: 왼쪽 위 사분면에서 빨강(0~2초) → 초록(2~4초) */
+  function quadrantProject(trId: string, d = 1) {
+    const quad = { ...DEFAULT_TRANSFORM, scale: 0.5, x: -0.25, y: -0.25 };
+    let p = mainProject({ ...clipFromMedia(mv2, 0), duration: 4 });
+    const a: Clip = { ...clipFromMedia(mv, 0), duration: 2, transform: quad, transition: { id: trId, duration: d } };
+    p = placeClip(p, a, undefined, true);
+    const track = p.tracks.find((t) => t.clips.some((c) => c.id === a.id))!;
+    return placeClip(p, { ...clipFromMedia(green, 2), duration: 2, transform: quad }, track.id);
+  }
+
+  it("오버레이 전환: 클립 영역 안에서만 일어난다", () => {
+    const r = render(quadrantProject("wipeleft"), { text: {} }, 360);
+    expect(pixel(r.out, 1.0, 0.1, 0.1)[0]).toBeGreaterThan(200); // 전환 전: 빨강
+    expect(pixel(r.out, 3.2, 0.1, 0.1)[1]).toBeGreaterThan(200); // 전환 후: 초록
+    // 전환 한가운데: 영역 왼쪽은 A(빨강), 오른쪽은 B(초록)
+    expect(pixel(r.out, 2.0, 0.03, 0.1)[0]).toBeGreaterThan(200);
+    expect(pixel(r.out, 2.0, 0.45, 0.1)[1]).toBeGreaterThan(200);
+    // 영역 밖은 아래 메인 트랙(파랑) 그대로
+    const out = pixel(r.out, 2.0, 0.75, 0.1);
+    expect(out[2]).toBeGreaterThan(200);
+    expect(out[0]).toBeLessThan(60);
+  }, 60000);
+
+  it("오버레이 전환: 모든 종류가 렌더링된다", () => {
+    for (const tr of TRANSITIONS) {
+      const r = render(quadrantProject(tr.id, 0.6));
+      expect(r.duration, tr.id).toBeGreaterThan(3.85);
+      // 영역 밖은 검정/흰색 페이드에도 물들지 않는다
+      const out = pixel(r.out, 2.0, 0.75, 0.75);
+      expect(out[2], tr.id).toBeGreaterThan(200);
+    }
+  }, 300000);
+
   it("효과: 모든 효과가 렌더링된다", () => {
     for (const def of EFFECTS) {
       let p = mainProject({ ...clipFromMedia(mv, 0), duration: 2 });

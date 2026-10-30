@@ -195,7 +195,12 @@ ipcMain.handle("project:autosave", async (_e, project: Project) => {
 });
 ipcMain.handle("project:recover", async () => {
   if (!existsSync(autosavePath())) return undefined;
-  return JSON.parse(await readFile(autosavePath(), "utf8")) as Project;
+  // 쓰는 도중 꺼져 파일이 깨졌으면 복구하지 않는다 (시작 화면이 멈추지 않도록)
+  try {
+    return JSON.parse(await readFile(autosavePath(), "utf8")) as Project;
+  } catch {
+    return undefined;
+  }
 });
 
 ipcMain.handle("export:pickPath", async (_e, name: string, format: string) => {

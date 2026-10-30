@@ -5,6 +5,7 @@ import { duoColor, findEffect, defaultParams } from "../core/effects";
 import { compile } from "../core/expr";
 import { hasMask, maskExpr } from "../core/mask";
 import { renderText } from "../core/textRender";
+import { transitionRect } from "../core/transitions";
 import type { BlendMode, Clip, Mask } from "../core/types";
 import type { Frame, LayerDraw } from "./frame";
 import { BLEND_FS, BLUR_FS, COPY_FS, EFFECT_FS, FULL_VS, LAYER_FS, LAYER_VS, TRANSITION_FS } from "./shaders";
@@ -423,6 +424,7 @@ export class Compositor {
         u.i("u_kind", kind);
         u.f("u_p", p);
         u.f("u_res", this.W, this.H);
+        u.f("u_rect", 0, 0, this.W, this.H);
       });
     }
 
@@ -473,6 +475,35 @@ export class Compositor {
           u.f("u_col", col[0], col[1], col[2]);
         });
         swap();
+      } else if (item.type === "transition") {
+        // 오버레이 전환: 두 클립을 투명 화면에 그려(미리 곱한 알파) 클립 영역 안에서 섞은 뒤 얹는다
+        const gl = this.gl;
+        const [fa, fb, fo] = [this.fbo("ovA"), this.fbo("ovB"), this.fbo("ovOut")];
+        for (const [l, f] of [[item.a, fa], [item.b, fb]] as const) {
+          this.target(f);
+          gl.clearColor(0, 0, 0, 0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          this.drawLayer(l, f, provide, boxes);
+        }
+        const r = transitionRect(item.a.clip, item.a.media, item.b.clip, item.b.media, this.W, this.H);
+        this.pass("transition", fo, (u) => {
+          this.bindTex(0, fa.tex);
+          this.bindTex(1, fb.tex);
+          u.i("u_a", 0);
+          u.i("u_b", 1);
+          u.i("u_kind", item.kind);
+          u.f("u_p", item.p);
+          u.f("u_res", this.W, this.H);
+          u.f("u_rect", r.x, r.y, r.w, r.h);
+        });
+        this.target(acc);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        const u = this.use("copy");
+        u.f("u_flipY", 0);
+        this.bindTex(0, fo.tex);
+        u.i("u_tex", 0);
+        this.drawQuad();
       } else if (item.type === "adjust") {
         // 조정 레이어: 현재 화면 전체에 LUT/선명도/비네트 적용
         this.drawFboAsLayer(acc, alt, item.clip);

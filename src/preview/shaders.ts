@@ -246,6 +246,8 @@ void main() {
 }`;
 
 // ── 전환 (P = 진행도 0..1, progress = 1-P 는 FFmpeg xfade 내부 표기) ──
+// u_rect = 전환 영역(x, y, w, h 캔버스 픽셀). 메인 트랙은 화면 전체, 오버레이 트랙은 클립 영역.
+// 오버레이는 미리 곱한 알파로 섞는다 (내보내기의 premultiply → xfade와 같음).
 export const TRANSITION_FS = `#version 300 es
 precision highp float;
 in vec2 v_uv; out vec4 o;
@@ -253,14 +255,18 @@ uniform sampler2D u_a, u_b;
 uniform int u_kind;
 uniform float u_p;
 uniform vec2 u_res;
-vec4 A(vec2 px) { return texture(u_a, clamp(px / u_res, 0.0, 1.0)); }
-vec4 B(vec2 px) { return texture(u_b, clamp(px / u_res, 0.0, 1.0)); }
+uniform vec4 u_rect;
+vec4 S(sampler2D t, vec2 q) { return texture(t, clamp((u_rect.xy + q) / u_res, u_rect.xy / u_res, (u_rect.xy + u_rect.zw) / u_res)); }
+vec4 A(vec2 q) { return S(u_a, q); }
+vec4 B(vec2 q) { return S(u_b, q); }
 float frand(vec2 p) { return fract(sin(p.x * 12.9898 + p.y * 78.233) * 43758.545); }
 void main() {
   float progress = 1.0 - u_p;
-  vec2 px = v_uv * u_res;
-  float W = u_res.x, H = u_res.y, x = px.x, y = px.y;
-  vec4 a = A(px), b = B(px);
+  vec2 q = v_uv * u_res - u_rect.xy;
+  if (q.x < 0.0 || q.y < 0.0 || q.x >= u_rect.z || q.y >= u_rect.w) { o = vec4(0.0); return; }
+  vec2 R = u_rect.zw;
+  float W = R.x, H = R.y, x = q.x, y = q.y;
+  vec4 a = A(q), b = B(q);
   vec4 r = mix(b, a, progress);
   if (u_kind == 2 || u_kind == 3) {
     vec4 k = u_kind == 2 ? vec4(0, 0, 0, 1) : vec4(1);
@@ -268,23 +274,23 @@ void main() {
     vec4 i2 = mix(b, k, smoothstep(0.2, 1.0, progress));
     r = mix(i2, i1, progress);
   }
-  else if (u_kind == 4) r = frand(floor(px)) * 2.0 + progress * 2.0 - 1.5 >= 0.5 ? a : b;
+  else if (u_kind == 4) r = frand(floor(q)) * 2.0 + progress * 2.0 - 1.5 >= 0.5 ? a : b;
   else if (u_kind == 5) {
     float d = min(progress, 1.0 - progress);
     float dist = ceil(d * 50.0) / 50.0;
     float sq = 2.0 * dist * min(W, H) / 20.0;
-    vec2 sp = dist > 0.0 ? min((floor(px / sq) + 0.5) * sq, u_res - 1.0) : px;
+    vec2 sp = dist > 0.0 ? min((floor(q / sq) + 0.5) * sq, R - 1.0) : q;
     r = mix(B(sp), A(sp), progress);
   }
   else if (u_kind == 6) {
     float rad = floor(min(progress, 1.0 - progress) * 2.0 * W * 0.04);
     vec4 sa = vec4(0), sb = vec4(0); float n = 0.0;
-    for (float i = -16.0; i <= 16.0; i += 1.0) { vec2 o2 = vec2(i * rad / 16.0, 0); sa += A(px + o2); sb += B(px + o2); n += 1.0; }
+    for (float i = -16.0; i <= 16.0; i += 1.0) { vec2 o2 = vec2(i * rad / 16.0, 0); sa += A(q + o2); sb += B(q + o2); n += 1.0; }
     r = mix(sb / n, sa / n, progress);
   }
   else if (u_kind == 7) {
     float zf = smoothstep(0.5, 1.0, progress);
-    vec4 az = A(u_res * 0.5 + (px - u_res * 0.5) * zf);
+    vec4 az = A(R * 0.5 + (q - R * 0.5) * zf);
     r = mix(b, az, smoothstep(0.0, 0.5, progress));
   }
   else if (u_kind == 10) r = x > W * progress ? b : a;
@@ -312,7 +318,7 @@ void main() {
   else if (u_kind == 27) r = x >= (1.0 - progress) * W ? A(vec2(x - (1.0 - progress) * W, y)) : b;
   else if (u_kind == 30 || u_kind == 31) {
     float z = length(vec2(W, H) * 0.5);
-    float d = length(px - u_res * 0.5) / z;
+    float d = length(q - R * 0.5) / z;
     if (u_kind == 30) r = mix(b, a, smoothstep(0.0, 1.0, d + (progress - 0.5) * 3.0));
     else r = mix(a, b, smoothstep(0.0, 1.0, d + (1.0 - progress - 0.5) * 3.0));
   }

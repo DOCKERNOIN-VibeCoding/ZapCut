@@ -1,5 +1,5 @@
 import { Diamond, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Rewind, Snowflake, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { findFilter } from "../core/color";
 import { defaultParams, findEffect } from "../core/effects";
 import { IN_ANIMS, LOOP_ANIMS, OUT_ANIMS, findAnim } from "../core/motion";
@@ -173,11 +173,12 @@ function CropBlendSection({ clip, edit, main }: { clip: Clip; edit: Edit; main: 
   );
 }
 
-function TransitionSection({ clip, edit }: { clip: Clip; edit: Edit }) {
+function TransitionSection({ clip, edit, main }: { clip: Clip; edit: Edit; main: boolean }) {
   const tr = clip.transition;
   return (
     <section>
       <h4>다음 클립으로의 전환</h4>
+      {!main && (clip.blend ?? "normal") !== "normal" && <p className="muted small">블렌드 모드를 쓰는 오버레이 클립에는 전환이 적용되지 않습니다.</p>}
       <Select label="전환" value={tr?.id ?? ""} options={[{ value: "", label: "없음" }, ...TRANSITIONS.map((t) => ({ value: t.id, label: `${t.category} · ${t.name}` }))]} onChange={(v) => edit((c) => ({ ...c, transition: v ? { id: v, duration: c.transition?.duration ?? 0.6 } : undefined }))} />
       {tr && findTransition(tr.id) && <Slider label="길이" value={tr.duration} min={0.1} max={Math.max(0.2, Math.min(3, clip.duration * 0.9))} step={0.05} unit="초" onChange={(v, t) => edit((c) => ({ ...c, transition: { ...c.transition!, duration: v } }), t)} />}
     </section>
@@ -396,16 +397,40 @@ function SpeedSection({ clip }: { clip: Clip }) {
   );
 }
 
-const FONTS = ["Malgun Gothic", "Gulim", "Dotum", "Batang", "Gungsuh", "Arial", "Segoe UI", "Impact", "Georgia", "Consolas"];
+// Windows에 설치된 글꼴 (처음 한 번 읽음). 텍스트는 화면에서 그려 내보내므로 TTF/OTF 모두 쓸 수 있다
+const FALLBACK_FONTS = ["Malgun Gothic", "Gulim", "Dotum", "Batang", "Gungsuh", "Arial", "Segoe UI", "Impact", "Georgia", "Consolas"];
+let installedFonts: Promise<string[]> | undefined;
+function useFonts(current: string) {
+  const [fonts, setFonts] = useState(FALLBACK_FONTS);
+  useEffect(() => {
+    installedFonts ??= window
+      .queryLocalFonts()
+      .then((list) => [...new Set(list.map((f) => f.family))].sort((a, b) => a.localeCompare(b)))
+      .catch(() => FALLBACK_FONTS);
+    installedFonts.then(setFonts);
+  }, []);
+  // 이 PC에 없는 글꼴을 쓴 프로젝트도 현재 값은 보여 준다
+  return fonts.includes(current) ? fonts : [current, ...fonts];
+}
 
 function TextSection({ clip, edit }: { clip: Clip; edit: Edit }) {
   const t = clip.text!;
   const set = (patch: Partial<TextStyle>, tr = false) => edit((c) => ({ ...c, text: { ...c.text!, ...patch } }), tr);
+  const fonts = useFonts(t.fontFamily);
   return (
     <section>
       <h4>텍스트</h4>
       <textarea className="text-input" rows={3} value={t.content} onChange={(e) => set({ content: e.target.value })} />
-      <Select label="글꼴" value={t.fontFamily} options={FONTS.map((f) => ({ value: f, label: f }))} onChange={(v) => set({ fontFamily: v })} />
+      <div className="field">
+        <label>글꼴</label>
+        <select value={t.fontFamily} onChange={(e) => set({ fontFamily: e.target.value })} style={{ fontFamily: `"${t.fontFamily}"` }}>
+          {fonts.map((f) => (
+            <option key={f} value={f} style={{ fontFamily: `"${f}"` }}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </div>
       <Slider label="글자 크기" value={t.fontSize} min={12} max={400} step={1} onChange={(v, tr) => set({ fontSize: v }, tr)} />
       <Slider label="자간" value={t.letterSpacing ?? 0} min={-10} max={80} step={1} onChange={(v, tr) => set({ letterSpacing: v }, tr)} />
       <div className="field">
@@ -571,7 +596,7 @@ export function Inspector() {
         {active === "main" && (clip.kind === "video" || clip.kind === "image") && (
           <>
             <TransformSection clip={clip} edit={edit} />
-            {isMain && <TransitionSection clip={clip} edit={edit} />}
+            <TransitionSection clip={clip} edit={edit} main={isMain} />
             {clip.kind === "image" && (
               <section>
                 <h4>길이</h4>

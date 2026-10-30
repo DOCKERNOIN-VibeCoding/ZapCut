@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { findEffect } from "../core/effects";
-import { findTransition } from "../core/transitions";
+import { adjacentPairs, DEFAULT_TRANSITION_DURATION, findTransition } from "../core/transitions";
 import { clipEnd, clipFromMedia, moveClip, resolveOverlap, uid, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
 import type { Clip, MediaItem, Track } from "../core/types";
 import { WAVE_RATE } from "../core/types";
@@ -29,6 +29,19 @@ const HEADER_W = 96;
 const RULER_H = 28;
 const SNAP_PX = 8;
 export const MEDIA_DND = "application/x-zapcut-media";
+export const TRANSITION_DND = "application/x-zapcut-transition";
+
+/** 컷(앞 클립)에 전환 적용 */
+function dropTransition(e: React.DragEvent, clip: Clip) {
+  const id = e.dataTransfer.getData(TRANSITION_DND);
+  if (!id) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const s = useEditor.getState();
+  s.setTransition(clip.id, { id, duration: clip.transition?.duration ?? DEFAULT_TRANSITION_DURATION });
+  s.select([clip.id]);
+  s.notify(`전환 적용: ${findTransition(id)?.name}`);
+}
 
 const trackHeight = (t: Track) => (t.main ? 76 : t.kind === "text" || t.kind === "effect" ? 32 : t.kind === "audio" ? 50 : 58);
 
@@ -253,6 +266,12 @@ export function Timeline() {
     const s = ed();
     const t = timeAt(e.clientX);
     const target = trackAt(e.clientY);
+    // 전환을 트랙 위에 놓으면 그 트랙에서 놓은 자리와 가장 가까운 컷에 넣는다
+    if (e.dataTransfer.types.includes(TRANSITION_DND)) {
+      const cuts = adjacentPairs(s.project.tracks.find((x) => x.id === target) ?? s.project.tracks.find((x) => x.main)!).map(([a]) => a);
+      if (!cuts.length) return s.notify("전환은 같은 트랙에서 붙어 있는 두 영상/사진 클립 사이에 들어갑니다");
+      return dropTransition(e, cuts.reduce((best, c) => (Math.abs(clipEnd(c) - t) < Math.abs(clipEnd(best) - t) ? c : best)));
+    }
     let ids: string[] = [];
     const mediaId = e.dataTransfer.getData(MEDIA_DND);
     if (mediaId) ids = [mediaId];
@@ -352,29 +371,27 @@ export function Timeline() {
                   {t.clips.map((c) => (
                     <ClipView key={c.id} clip={c} track={t} media={project.media.find((m) => m.id === c.mediaId)} onPointerDown={(e, mode) => onClipPointer(e, c, t, mode)} />
                   ))}
-                  {t.main &&
-                    [...t.clips]
-                      .sort((a, b) => a.start - b.start)
-                      .map((c, i, sorted) => {
-                        const next = sorted[i + 1];
-                        if (!next || Math.abs(next.start - clipEnd(c)) > 0.01) return null;
-                        const tr = findTransition(c.transition?.id);
-                        return (
-                          <button
-                            key={`tr-${c.id}`}
-                            className={`cut-marker ${tr ? "has" : ""}`}
-                            style={{ left: clipEnd(c) * zoom }}
-                            title={tr ? `전환: ${tr.name} (${c.transition!.duration.toFixed(1)}초)` : "전환 추가"}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() => {
-                              ed().select([c.id]);
-                              ed().setTab("transition");
-                            }}
-                          >
-                            {tr ? "⇄" : "+"}
-                          </button>
-                        );
-                      })}
+                  {t.kind === "video" &&
+                    adjacentPairs(t).map(([c]) => {
+                      const tr = findTransition(c.transition?.id);
+                      return (
+                        <button
+                          key={`tr-${c.id}`}
+                          className={`cut-marker ${tr ? "has" : ""}`}
+                          style={{ left: clipEnd(c) * zoom }}
+                          title={tr ? `전환: ${tr.name} (${c.transition!.duration.toFixed(1)}초)` : "전환 추가"}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onDragOver={(e) => e.dataTransfer.types.includes(TRANSITION_DND) && e.preventDefault()}
+                          onDrop={(e) => dropTransition(e, c)}
+                          onClick={() => {
+                            ed().select([c.id]);
+                            ed().setTab("transition");
+                          }}
+                        >
+                          {tr ? "⇄" : "+"}
+                        </button>
+                      );
+                    })}
                 </div>
               ))}
             </div>

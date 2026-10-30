@@ -6,7 +6,7 @@ import { num, substitute } from "./expr";
 import { hasMask, maskExpr } from "./mask";
 import { maxOver, motionExprs, volumeExpr } from "./motion";
 import { clipEnd, projectDuration } from "./timeline";
-import { findTransition } from "./transitions";
+import { trackTransitions, transitionRect, type TrackTransition } from "./transitions";
 import type { Clip, MediaItem, Project, Track } from "./types";
 
 export type Quality = "high" | "medium" | "low";
@@ -271,12 +271,8 @@ function buildMainTrack(c: Ctx, track: Track): { label: string; length: number }
   const clips = track.clips.filter((cl) => cl.kind === "video" || cl.kind === "image").sort((a, b) => a.start - b.start);
   if (!clips.length) return undefined;
   // 전환 길이: 인접(빈틈 없음)하고 양쪽 클립보다 짧을 때만
-  const trans: (number | undefined)[] = clips.map((cl, i) => {
-    const next = clips[i + 1];
-    const def = findTransition(cl.transition?.id);
-    if (!def || !next || Math.abs(next.start - clipEnd(cl)) > 0.01) return undefined;
-    return Math.min(cl.transition!.duration, cl.duration * 0.9, next.duration * 0.9);
-  });
+  const trs = trackTransitions(track);
+  const trans = clips.map((cl) => trs.find((x) => x.a === cl));
   let acc: string | undefined;
   let accLen = 0;
   const colorSeg = (d: number) => {
@@ -290,8 +286,8 @@ function buildMainTrack(c: Ctx, track: Track): { label: string; length: number }
     return l;
   };
   clips.forEach((cl, i) => {
-    const head = i > 0 && trans[i - 1] ? trans[i - 1]! / 2 : 0;
-    const tail = trans[i] ? trans[i]! / 2 : 0;
+    const head = i > 0 && trans[i - 1] ? trans[i - 1]!.d / 2 : 0;
+    const tail = trans[i] ? trans[i]!.d / 2 : 0;
     const len = head + cl.duration + tail;
     // 빈틈 채우기
     const expectedStart = cl.start - head;
@@ -328,8 +324,7 @@ function buildMainTrack(c: Ctx, track: Track): { label: string; length: number }
       acc = seg;
       accLen = len;
     } else if (head > 0) {
-      const def = findTransition(clips[i - 1].transition?.id)!;
-      const d = trans[i - 1]!;
+      const { def, d } = trans[i - 1]!;
       const l = g.label("xf");
       g.add(`[${acc}][${seg}]xfade=transition=${def.xfade}:duration=${n(d)}:offset=${n(accLen - d)}[${l}]`);
       acc = l;
@@ -340,6 +335,31 @@ function buildMainTrack(c: Ctx, track: Track): { label: string; length: number }
     }
   });
   return acc ? { label: acc, length: accLen } : undefined;
+}
+
+/**
+ * 오버레이 트랙 전환: 두 클립을 전환 영역 크기의 투명 화면에 그려 xfade로 섞은 뒤 그 자리에 얹는다.
+ * 투명한 부분이 섞일 때 색이 번지지 않도록 미리 곱한 알파로 섞는다 (미리보기와 같은 방식).
+ */
+function overlayTransition(c: Ctx, cur: string, tr: TrackTransition): string {
+  const { g, s, W, H } = c;
+  const r = transitionRect(tr.a, c.media.get(tr.a.mediaId ?? ""), tr.b, c.media.get(tr.b.mediaId ?? ""), W, H);
+  const side = (clip: Clip, T0: number) => {
+    const layer = buildLayer(c, clip, T0, tr.d, 0);
+    if (!layer) return undefined;
+    const [bg, out] = [g.label("tc"), g.label("tl")];
+    g.add(`color=c=black@0:s=${r.w}x${r.h}:r=${s.fps}:d=${n(tr.d)},format=rgba[${bg}]`);
+    g.add(`[${bg}][${layer.label}]overlay=x='${layer.x}-${r.x}':y='${layer.y}-${r.y}':eof_action=pass:format=rgb,premultiply=inplace=1[${out}]`);
+    return out;
+  };
+  const a = side(tr.a, tr.a.duration - tr.d / 2);
+  const b = side(tr.b, -tr.d / 2);
+  if (!a || !b) return cur;
+  const st = tr.cut - tr.d / 2;
+  const [mixed, out] = [g.label("tx"), g.label("C")];
+  g.add(`[${a}][${b}]xfade=transition=${tr.def.xfade}:duration=${n(tr.d)}:offset=0,unpremultiply=inplace=1,format=rgba,setpts=PTS+${n(st)}/TB[${mixed}]`);
+  g.add(`[${cur}][${mixed}]overlay=x=${r.x}:y=${r.y}:eof_action=pass:enable='gte(t,${n(st)})*lt(t,${n(tr.cut + tr.d / 2)})'[${out}]`);
+  return out;
 }
 
 /** 효과/조정 클립을 현재 합성 화면의 해당 구간에 적용 */
@@ -412,6 +432,8 @@ export function buildExportPlan(p: Project, s: ExportSettings, assets: ExportAss
       }
       continue;
     }
+    // 전환이 걸린 클립은 전환 구간을 빼고 그린다 (전환 구간은 overlayTransition이 그림)
+    const trs = trackTransitions(track);
     for (const clip of track.clips) {
       if (clip.kind === "effect" || clip.kind === "adjust") {
         cur = applyEffectClip(c, cur, clip);
@@ -424,12 +446,19 @@ export function buildExportPlan(p: Project, s: ExportSettings, assets: ExportAss
         cur = blendOver(c, cur, layer, clip.start, clip.blend);
         continue;
       }
+      const inT = trs.find((x) => x.b === clip);
+      const outT = trs.find((x) => x.a === clip);
+      const from = clip.start + (inT ? inT.d / 2 : 0);
+      const to = clipEnd(clip) - (outT ? outT.d / 2 : 0);
       const shifted = g.label("ls");
       g.add(`[${layer.label}]setpts=PTS+${n(clip.start)}/TB[${shifted}]`);
       const out = g.label("C");
-      g.add(`[${cur}][${shifted}]overlay=x='${layer.x}':y='${layer.y}':eof_action=pass:enable='between(t,${n(clip.start)},${n(clipEnd(clip))})'[${out}]`);
+      // 전환 구간과 경계 프레임이 겹치지 않도록 끝을 열린 구간으로
+      const enable = outT ? `gte(t,${n(from)})*lt(t,${n(to)})` : `between(t,${n(from)},${n(to)})`;
+      g.add(`[${cur}][${shifted}]overlay=x='${layer.x}':y='${layer.y}':eof_action=pass:enable='${enable}'[${out}]`);
       cur = out;
     }
+    for (const tr of trs) cur = overlayTransition(c, cur, tr);
   }
   g.add(`[${cur}]format=yuv420p[vout]`);
 
