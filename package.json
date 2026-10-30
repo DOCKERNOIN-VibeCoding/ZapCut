@@ -1,8 +1,8 @@
 {
   "name": "zapcut",
   "productName": "ZapCut",
-  "version": "1.1.1",
-  "displayVersion": "v1.1.1",
+  "version": "1.1.2",
+  "displayVersion": "v1.1.2",
   "private": true,
   "description": "짭컷(ZapCut) - 오프라인 데스크톱 동영상 편집기",
   "type": "module",
