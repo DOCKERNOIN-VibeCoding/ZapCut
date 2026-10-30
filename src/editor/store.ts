@@ -24,6 +24,7 @@ import { isMaskProp, MASK_KF } from "../core/mask";
 import { DEFAULT_MASK, upgradeProject, type Clip, type KfProp, type Keyframe, type MediaItem, type Project, type Track, type Transition } from "../core/types";
 import type { TextTemplate } from "../library/textTemplates";
 import type { TitleTemplate } from "../library/titleTemplates";
+import type { SilencePreview } from "./silence";
 import { instantiateTitle, titleLabel } from "../core/titles";
 
 /** T 근처 키가 있으면 값을 바꾸고, 없으면 새로 넣는다 */
@@ -78,6 +79,9 @@ interface EditorState {
   // 얼굴 찾기 결과 (화면 비율 0..1, 왼쪽 위 기준). 재생헤드가 움직이면 지운다
   faceHits?: { t: number; clipId: string; faces: { x: number; y: number; w: number; h: number }[] };
   setFaceHits: (v?: EditorState["faceHits"]) => void;
+  // 무음 구간 잘라내기 미리 보기 (타임라인에 빨간 띠). 찾았을 때의 project와 다르면 무효
+  silencePreview?: SilencePreview;
+  setSilencePreview: (v?: SilencePreview) => void;
   setBusy: (v?: string) => void;
   importFiles: (paths: string[], opts?: { keepAspect?: boolean; names?: string[]; sticker?: boolean }) => Promise<MediaItem[]>;
   valueAt: (clip: Clip, prop: KfProp, T: number) => number;
@@ -169,6 +173,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     setBusy: (v) => set({ busy: v }),
     setFaceHits: (v) => set({ faceHits: v }),
+    setSilencePreview: (v) => set({ silencePreview: v }),
     importFiles: async (paths, opts = {}) => {
       const added: MediaItem[] = [];
       set({ importing: get().importing + paths.length });

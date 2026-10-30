@@ -204,6 +204,8 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 .playhead { position: absolute; top: 0; bottom: 0; width: 1.5px; background: #fff; z-index: 4; pointer-events: none; }
 .playhead::before { content: ""; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top: 9px solid #fff; }
 .snap-line { display: none; position: absolute; top: 28px; bottom: 0; width: 1px; background: #ffe14d; z-index: 4; pointer-events: none; }
+.silence-band { position: absolute; top: 28px; bottom: 0; background: rgba(255, 93, 108, 0.22); border-left: 1px solid var(--danger); border-right: 1px solid var(--danger); pointer-events: none; z-index: 3; }
+.cover-row { flex-wrap: wrap; }
 .end-marker { position: absolute; top: 28px; bottom: 0; width: 0; border-left: 1px dashed rgba(255, 255, 255, 0.2); pointer-events: none; }
 
 /* 모달 */

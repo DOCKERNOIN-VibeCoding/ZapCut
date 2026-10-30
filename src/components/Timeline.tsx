@@ -126,6 +126,7 @@ export function Timeline() {
   const project = useEditor((s) => s.project);
   const zoom = useEditor((s) => s.zoom);
   const playhead = useEditor((s) => s.playhead);
+  const silence = useEditor((s) => s.silencePreview);
   const playing = useEditor((s) => s.playing);
   const magnet = useEditor((s) => s.magnet);
   const snapping = useEditor((s) => s.snapping);
@@ -398,6 +399,7 @@ export function Timeline() {
             <div className="playhead" style={{ left: playhead * zoom }} />
             <div className="snap-line" ref={snapLine} />
             {total > 0 && <div className="end-marker" style={{ left: total * zoom }} />}
+            {silence?.project === project && silence.ranges.map((r, i) => <div key={i} className="silence-band" style={{ left: r.a * zoom, width: Math.max(2, (r.b - r.a) * zoom) }} title="무음 구간 (잘라내기 미리 보기)" />)}
           </div>
         </div>
       </div>

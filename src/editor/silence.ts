@@ -1,5 +1,5 @@
 // 무음 구간 잘라내기: 말소리 사이의 빈 구간을 찾아 모든 트랙(영상·소리·자막)에서 잘라내고 뒤를 당겨 붙인다 (인터뷰 템포 정리)
-import { clipEnd, rippleDelete } from "../core/timeline";
+import { clipEnd, projectDuration, rippleDelete } from "../core/timeline";
 import type { Clip, Project } from "../core/types";
 import { useEditor } from "./store";
 
@@ -30,11 +30,21 @@ export function mergeRanges(ranges: { a: number; b: number }[]) {
   return out;
 }
 
-export async function removeSilence(opts: SilenceOptions) {
+export interface SilencePreview {
+  ranges: { a: number; b: number }[];
+  total: number;
+  before: number; // 전체 길이(초)
+  after: number;
+  project: Project; // 이 프로젝트 상태에서 찾은 것 — 바뀌면 무효
+}
+
+/** 1단계: 무음 구간을 찾아 타임라인에 미리 보여 준다 (잘라내지 않음) */
+export async function findSilence(opts: SilenceOptions) {
   const s = useEditor.getState();
   const targets = silenceTargets(s.project, s.selection);
   if (!targets.length) return s.notify("소리가 있는 영상이나 오디오 클립을 고르거나 메인 트랙에 놓으세요", "error");
   s.setBusy("무음 구간 찾기");
+  s.setSilencePreview(undefined);
   try {
     const ranges: { a: number; b: number }[] = [];
     for (const c of targets) {
@@ -52,12 +62,27 @@ export async function removeSilence(opts: SilenceOptions) {
     const merged = mergeRanges(ranges);
     if (!merged.length) return useEditor.getState().notify("잘라낼 무음 구간이 없습니다. 기준 음량을 올리거나 최소 길이를 줄여 보세요");
     const total = merged.reduce((t, r) => t + (r.b - r.a), 0);
-    // 뒤에서부터 잘라야 앞쪽 시각이 밀리지 않는다. 한 번의 커밋 → Ctrl+Z 한 번으로 되돌림
-    useEditor.getState().commit((p) => [...merged].reverse().reduce((acc, r) => rippleDelete(acc, r.a, r.b), p));
-    useEditor.getState().notify(`무음 ${merged.length}곳을 잘라 ${total.toFixed(1)}초 줄였습니다 (Ctrl+Z로 되돌릴 수 있습니다)`);
+    const before = projectDuration(s.project);
+    useEditor.getState().setSilencePreview({ ranges: merged, total, before, after: before - total, project: s.project });
+    useEditor.getState().notify(`무음 ${merged.length}곳, ${total.toFixed(1)}초가 잘립니다. 타임라인의 빨간 구간을 확인한 뒤 '잘라내기'를 누르세요`);
   } catch (e) {
-    useEditor.getState().notify(`무음 구간 잘라내기 실패: ${(e as Error).message}`, "error");
+    useEditor.getState().notify(`무음 구간 찾기 실패: ${(e as Error).message}`, "error");
   } finally {
     useEditor.getState().setBusy(undefined);
   }
+}
+
+/** 2단계: 미리 본 구간을 모든 트랙에서 잘라내고 뒤를 당겨 붙인다. 한 번의 커밋 → Ctrl+Z 한 번으로 되돌림 */
+export function applySilence() {
+  const s = useEditor.getState();
+  const pv = s.silencePreview;
+  if (!pv) return;
+  if (pv.project !== s.project) {
+    s.setSilencePreview(undefined);
+    return s.notify("미리 본 뒤 프로젝트가 바뀌었습니다. '무음 찾기'를 다시 누르세요", "error");
+  }
+  // 뒤에서부터 잘라야 앞쪽 시각이 밀리지 않는다
+  s.commit((p) => [...pv.ranges].reverse().reduce((acc, r) => rippleDelete(acc, r.a, r.b), p));
+  useEditor.getState().setSilencePreview(undefined);
+  useEditor.getState().notify(`무음 ${pv.ranges.length}곳을 잘라 ${pv.total.toFixed(1)}초 줄였습니다 (Ctrl+Z로 되돌릴 수 있습니다)`);
 }

@@ -1,9 +1,9 @@
 // 텍스트 탭 > 자막: 자동 캡션 실행, 자막 목록 편집, SRT 내보내기
-import { Captions, Download, Scissors } from "lucide-react";
+import { Captions, Download, Scissors, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CAPTION_LANGS, CAPTION_MODELS, toSrt } from "../core/captions";
 import { autoCaption, captionTargets } from "../editor/captions";
-import { DEFAULT_SILENCE, removeSilence, silenceTargets } from "../editor/silence";
+import { applySilence, DEFAULT_SILENCE, findSilence, silenceTargets } from "../editor/silence";
 import { useEditor } from "../editor/store";
 import { shortTime } from "./format";
 
@@ -14,7 +14,14 @@ export function CaptionPanel() {
   const [lang, setLang] = useState("ko");
   const [model, setModel] = useState("large");
   const [have, setHave] = useState<string[]>([]);
-  const [sil, setSil] = useState(DEFAULT_SILENCE);
+  const [sil, setSilRaw] = useState(DEFAULT_SILENCE);
+  const preview = useEditor((s) => s.silencePreview);
+  const live = preview && preview.project === project ? preview : undefined;
+  // 설정을 바꾸면 미리 본 결과는 더 이상 맞지 않는다
+  const setSil = (v: typeof sil) => {
+    setSilRaw(v);
+    useEditor.getState().setSilencePreview(undefined);
+  };
   const refresh = () => window.zapcut.captionModels().then(setHave).catch(() => undefined);
   useEffect(() => {
     refresh();
@@ -92,10 +99,25 @@ export function CaptionPanel() {
         <span className="unit">{sil.pad.toFixed(2)}초</span>
       </div>
       <div className="cover-row">
-        <button className="primary-btn" disabled={!!busy || !silenceTargets(project, selection).length} onClick={() => removeSilence(sil)}>
-          <Scissors size={14} /> 무음 잘라내기
+        <button className={live ? "ghost-btn" : "primary-btn"} disabled={!!busy || !silenceTargets(project, selection).length} onClick={() => findSilence(sil)}>
+          <Search size={14} /> 무음 찾기
         </button>
+        {live && (
+          <>
+            <button className="primary-btn" onClick={() => applySilence()}>
+              <Scissors size={14} /> 잘라내기 ({live.ranges.length}곳)
+            </button>
+            <button className="ghost-btn" onClick={() => useEditor.getState().setSilencePreview(undefined)}>
+              취소
+            </button>
+          </>
+        )}
       </div>
+      {live && (
+        <p className="small">
+          무음 {live.ranges.length}곳, {live.total.toFixed(1)}초가 잘립니다 · 전체 {live.before.toFixed(1)}초 → {live.after.toFixed(1)}초. 타임라인의 빨간 구간을 확인하세요.
+        </p>
+      )}
       <h4 className="res-sub">자막 목록 ({captions.length})</h4>
       {captions.length === 0 && <p className="muted small">아직 자막이 없습니다. 자동 캡션을 누르면 여기에 문장별로 나옵니다.</p>}
       <div className="caption-list">
