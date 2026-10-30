@@ -83,7 +83,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
           <button className="beer-btn" onClick={() => window.open(DONATE)} title="Buy Me a Coffee 페이지가 브라우저에서 열립니다">
-            <Beer size={16} /> 개발자에게 맥주 한 잔 사주기 <span className="muted small">Buy Me a Coffee</span>
+            <Beer size={16} /> 개발자에게 맥주 한 잔 사주기 <span className="muted small">$3 · Buy Me a Coffee</span>
           </button>
           {check && <p className="muted small">{checkText(check)}</p>}
 
