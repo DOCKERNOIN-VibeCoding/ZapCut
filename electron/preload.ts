@@ -46,6 +46,8 @@ const api = {
     };
   },
   installUpdate: () => ipcRenderer.invoke("update:install"),
+  checkUpdate: (): Promise<{ state: "dev" | "latest" } | { state: "available"; version: string } | { state: "error"; message: string }> => ipcRenderer.invoke("update:check"),
+  openLicense: (key: string): Promise<string> => ipcRenderer.invoke("license:open", key),
 };
 
 contextBridge.exposeInMainWorld("zapcut", api);

@@ -398,6 +398,7 @@ function SpeedSection({ clip }: { clip: Clip }) {
 }
 
 // Windows에 설치된 글꼴 (처음 한 번 읽음). 텍스트는 화면에서 그려 내보내므로 TTF/OTF 모두 쓸 수 있다
+const BUNDLED_FONTS = ["Pretendard", "Bebas Neue", "Pacifico"];
 const FALLBACK_FONTS = ["Malgun Gothic", "Gulim", "Dotum", "Batang", "Gungsuh", "Arial", "Segoe UI", "Impact", "Georgia", "Consolas"];
 let installedFonts: Promise<string[]> | undefined;
 function useFonts(current: string) {
@@ -410,7 +411,9 @@ function useFonts(current: string) {
     installedFonts.then(setFonts);
   }, []);
   // 이 PC에 없는 글꼴을 쓴 프로젝트도 현재 값은 보여 준다
-  return fonts.includes(current) ? fonts : [current, ...fonts];
+  // 앱에 들어 있는 글꼴을 맨 위에
+  const all = [...BUNDLED_FONTS, ...fonts.filter((f) => !BUNDLED_FONTS.includes(f))];
+  return all.includes(current) ? all : [current, ...all];
 }
 
 function TextSection({ clip, edit }: { clip: Clip; edit: Edit }) {

@@ -3,7 +3,7 @@
 import type { TextStyle } from "./types";
 
 export function fontString(s: TextStyle, px: number) {
-  return `${s.italic ? "italic " : ""}${s.bold ? "800 " : "400 "}${px}px "${s.fontFamily}", "Malgun Gothic", sans-serif`;
+  return `${s.italic ? "italic " : ""}${s.bold ? "800 " : "400 "}${px}px "${s.fontFamily}", "Pretendard", "Malgun Gothic", sans-serif`;
 }
 
 interface Layout {

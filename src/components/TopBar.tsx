@@ -50,17 +50,17 @@ function UpdateButton() {
   );
 }
 
-export function TopBar({ onNew, onExport }: { onNew: () => void; onExport: () => void }) {
+export function TopBar({ onNew, onExport, onAbout }: { onNew: () => void; onExport: () => void; onAbout: () => void }) {
   const name = useEditor((s) => s.project.name);
   const dirty = useEditor((s) => s.dirty);
   const s = useEditor.getState;
   return (
     <div className="topbar">
-      <div className="brand">
+      <button className="brand" onClick={onAbout} title="ZapCut 정보">
         <Zap size={18} className="brand-icon" />
         ZapCut
         <span className="version-badge">{pkg.displayVersion}</span>
-      </div>
+      </button>
       <div className="menu">
         <button
           className="menu-btn"

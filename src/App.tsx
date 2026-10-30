@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AboutDialog } from "./components/AboutDialog";
 import { ExportDialog } from "./components/ExportDialog";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
@@ -71,6 +72,7 @@ function Busy() {
 
 export function App() {
   const [exporting, setExporting] = useState(false);
+  const [about, setAbout] = useState(false);
   // "startup"은 프로그램 시작 시라 취소할 수 없다
   const [creating, setCreating] = useState<"startup" | "new" | null>(null);
   useShortcuts(() => setExporting(true));
@@ -127,7 +129,7 @@ export function App() {
 
   return (
     <div className="app">
-      <TopBar onNew={() => setCreating("new")} onExport={() => setExporting(true)} />
+      <TopBar onNew={() => setCreating("new")} onExport={() => setExporting(true)} onAbout={() => setAbout(true)} />
       <div className="workspace">
         <ResourcePanel />
         <Player />
@@ -135,6 +137,7 @@ export function App() {
       </div>
       <Timeline />
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
       {creating && <NewProjectDialog onDone={() => setCreating(null)} onCancel={creating === "new" ? () => setCreating(null) : undefined} />}
       <Toast />
       <Busy />

@@ -287,6 +287,34 @@ function checkForUpdates() {
   autoUpdater.checkForUpdates().catch(() => undefined);
 }
 ipcMain.handle("update:install", () => autoUpdater.quitAndInstall(true, true));
+/** 정보 창의 "업데이트 확인". 새 버전이 있으면 시작할 때와 같이 받아 두고 상태를 알린다 */
+ipcMain.handle("update:check", async () => {
+  if (!app.isPackaged) return { state: "dev" as const };
+  try {
+    const r = await autoUpdater.checkForUpdates();
+    return r?.isUpdateAvailable ? { state: "available" as const, version: r.updateInfo.version } : { state: "latest" as const };
+  } catch (err) {
+    return { state: "error" as const, message: (err as Error).message };
+  }
+});
+
+// 정보 창에서 여는 라이선스 문서 (정해진 파일만). [설치본: resources 기준, 개발: 프로젝트 폴더 기준]
+const LICENSE_FILES: Record<string, [string, string]> = {
+  zapcut: ["licenses/ZapCut-LICENSE.txt", "LICENSE"],
+  thirdParty: ["licenses/THIRD-PARTY-NOTICES.txt", "licenses/THIRD-PARTY-NOTICES.txt"],
+  ffmpeg: ["ffmpeg/FFMPEG-LICENSE.txt", "build/ffmpeg/FFMPEG-LICENSE.txt"],
+  electron: ["../LICENSE.electron.txt", "node_modules/electron/dist/LICENSE"],
+  chromium: ["../LICENSES.chromium.html", "node_modules/electron/dist/LICENSES.chromium.html"],
+  pretendard: ["licenses/fonts/Pretendard-OFL.txt", "licenses/fonts/Pretendard-OFL.txt"],
+  bebas: ["licenses/fonts/BebasNeue-OFL.txt", "licenses/fonts/BebasNeue-OFL.txt"],
+  pacifico: ["licenses/fonts/Pacifico-OFL.txt", "licenses/fonts/Pacifico-OFL.txt"],
+};
+ipcMain.handle("license:open", (_e, key: string) => {
+  const rel = LICENSE_FILES[key];
+  if (!rel) return "알 수 없는 라이선스";
+  const file = app.isPackaged ? path.join(process.resourcesPath, rel[0]) : path.join(__dirname, "..", rel[1]);
+  return shell.openPath(file);
+});
 
 const single = app.requestSingleInstanceLock();
 if (!single) app.quit();

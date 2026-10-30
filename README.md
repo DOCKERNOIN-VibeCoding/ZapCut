@@ -90,6 +90,9 @@ npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg�
 
 ## 라이선스
 
-짭컷 소스: MIT. 번들된 FFmpeg: GPL v3 (gyan.dev full build).
+Copyright © 2026 DOCKERNOIN
+
+짭컷 소스: MIT. 번들된 FFmpeg: GPL v3 (gyan.dev full build). 번들 글꼴 Pretendard·Bebas Neue·Pacifico: SIL OFL 1.1 (`licenses/fonts`).
+프로그램의 정보 창(상단 로고 클릭)에서 포함된 오픈 소스와 라이선스 전문을 볼 수 있습니다. 런타임 의존성 라이선스 목록은 빌드할 때 `scripts/collect-licenses.mjs`가 만듭니다.
 
 CapCut은 해당 소유자의 상표입니다. 짭컷(ZapCut)은 CapCut 및 그 개발사와 관련이 없는 독립 프로젝트입니다.

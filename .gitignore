@@ -6,3 +6,5 @@ build/ffmpeg/
 *.log
 # 외부 도구 저장소(morluto/rea, 자체 .git 보유) — 별도로 받는다
 REA/
+# 빌드할 때 node_modules에서 모으는 파일
+licenses/THIRD-PARTY-NOTICES.txt

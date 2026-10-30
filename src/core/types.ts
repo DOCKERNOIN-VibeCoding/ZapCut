@@ -197,7 +197,7 @@ export const DEFAULT_MASK: Mask = { type: "none", x: 0, y: 0, w: 0.6, h: 0.6, ro
 export const DEFAULT_CANVAS: CanvasBg = { type: "none", color: "#000000", blur: 0.5 };
 export const DEFAULT_TEXT: TextStyle = {
   content: "텍스트를 입력하세요",
-  fontFamily: "Malgun Gothic",
+  fontFamily: "Pretendard",
   fontSize: 96,
   color: "#ffffff",
   bold: true,
