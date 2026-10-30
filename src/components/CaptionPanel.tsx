@@ -3,9 +3,27 @@ import { Captions, Download, Scissors, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CAPTION_LANGS, CAPTION_MODELS, toSrt } from "../core/captions";
 import { autoCaption, captionTargets } from "../editor/captions";
-import { applySilence, DEFAULT_SILENCE, findSilence, silenceTargets } from "../editor/silence";
+import { applySilence, DEFAULT_SILENCE, findSilence, silenceTargets, type SilenceOptions } from "../editor/silence";
 import { useEditor } from "../editor/store";
 import { shortTime } from "./format";
+
+// 마지막으로 쓴 무음 설정은 이 PC에 남긴다 (범위를 벗어나거나 깨진 값은 기본값)
+const SIL_KEY = "zapcut.silence";
+const SIL_RANGE: Record<keyof SilenceOptions, [number, number]> = { noiseDb: [-60, -15], minDur: [0.2, 3], pad: [0, 0.5] };
+function loadSilence(): SilenceOptions {
+  try {
+    const v = JSON.parse(localStorage.getItem(SIL_KEY) ?? "null") as Partial<SilenceOptions> | null;
+    const out = { ...DEFAULT_SILENCE };
+    for (const k of Object.keys(SIL_RANGE) as (keyof SilenceOptions)[]) {
+      const n = Number(v?.[k]);
+      if (Number.isFinite(n)) out[k] = Math.min(SIL_RANGE[k][1], Math.max(SIL_RANGE[k][0], n));
+    }
+    return out;
+  } catch {
+    return DEFAULT_SILENCE;
+  }
+}
+const isDefaultSilence = (v: SilenceOptions) => (Object.keys(SIL_RANGE) as (keyof SilenceOptions)[]).every((k) => v[k] === DEFAULT_SILENCE[k]);
 
 export function CaptionPanel() {
   const project = useEditor((s) => s.project);
@@ -14,12 +32,17 @@ export function CaptionPanel() {
   const [lang, setLang] = useState("ko");
   const [model, setModel] = useState("large");
   const [have, setHave] = useState<string[]>([]);
-  const [sil, setSilRaw] = useState(DEFAULT_SILENCE);
+  const [sil, setSilRaw] = useState(loadSilence);
   const preview = useEditor((s) => s.silencePreview);
   const live = preview && preview.project === project ? preview : undefined;
   // 설정을 바꾸면 미리 본 결과는 더 이상 맞지 않는다
   const setSil = (v: typeof sil) => {
     setSilRaw(v);
+    try {
+      localStorage.setItem(SIL_KEY, JSON.stringify(v));
+    } catch {
+      // 저장 공간을 쓸 수 없어도 이번 실행에서는 그대로 동작
+    }
     useEditor.getState().setSilencePreview(undefined);
   };
   const refresh = () => window.zapcut.captionModels().then(setHave).catch(() => undefined);
@@ -98,6 +121,12 @@ export function CaptionPanel() {
         <input type="range" min={0} max={0.5} step={0.05} value={sil.pad} onChange={(e) => setSil({ ...sil, pad: +e.target.value })} />
         <span className="unit">{sil.pad.toFixed(2)}초</span>
       </div>
+      <p className="small">
+        <button className="link tiny" disabled={isDefaultSilence(sil)} onClick={() => setSil(DEFAULT_SILENCE)} title="-35 dB · 0.6초 · 0.15초">
+          기본값으로 되돌리기
+        </button>
+        {!isDefaultSilence(sil) && <span className="muted"> · 마지막에 쓴 값입니다</span>}
+      </p>
       <div className="cover-row">
         <button className={live ? "ghost-btn" : "primary-btn"} disabled={!!busy || !silenceTargets(project, selection).length} onClick={() => findSilence(sil)}>
           <Search size={14} /> 무음 찾기
