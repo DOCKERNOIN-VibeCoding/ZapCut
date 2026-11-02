@@ -50,6 +50,20 @@ export const TOOLS: Record<string, ToolDef> = {
       background: z.string().optional().describe("#rrggbb"),
     },
   },
+  reframe: {
+    title: "포맷 변환",
+    description:
+      "캔버스 비율을 바꾸고 메인 트랙의 영상·사진을 새 비율에 맞게 자른다 (16:9 롱폼 → 9:16 숏폼·1:1 등). ratio+short 또는 width/height. anchor: center(가운데) | face(YuNet 얼굴 찾기로 인물을 가운데에, 못 찾은 클립은 가운데). fit: fill(새 비율로 잘라 화면을 가득 채움) | box(1:1까지만 자르고 남는 위아래·양옆은 비움. 대상이 1:1이거나 가로형이면 fill과 같음). blur: box에서 빈 곳을 흐린 원본으로 채움(false면 배경색). 텍스트·타이틀은 새 캔버스 폭의 90% 안에 들어오게 줄인다. 겹친(메인 트랙이 아닌) 영상·스티커는 그대로 둔다. undo로 되돌릴 수 있고, 끝나면 screenshot으로 구도를 확인한다. 여러 포맷을 뽑으려면 포맷마다 reframe→export→undo를 반복하거나 save_project로 따로 저장한다.",
+    schema: {
+      ratio: z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"]).optional(),
+      short: z.number().int().optional().describe("짧은 변 해상도: 480·720·1080·1440·2160 (기본: 지금 프로젝트의 짧은 변)"),
+      width: z.number().int().optional(),
+      height: z.number().int().optional(),
+      anchor: z.enum(["center", "face"]).optional().describe("기본 center"),
+      fit: z.enum(["fill", "box"]).optional().describe("기본 fill"),
+      blur: z.boolean().optional().describe("기본 true"),
+    },
+  },
   open_project: {
     title: "프로젝트 열기",
     description: ".zapcut 파일을 연다. 찾을 수 없는 미디어 경로 목록(missing)을 함께 돌려준다.",

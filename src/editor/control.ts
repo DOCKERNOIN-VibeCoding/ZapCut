@@ -15,6 +15,7 @@ import { TEMPLATES } from "../library/templates";
 import { TEXT_TEMPLATES } from "../library/textTemplates";
 import { TITLE_TEMPLATES } from "../library/titleTemplates";
 import { renderTextAssets } from "./exportAssets";
+import { reframe } from "./reframe";
 import { useEditor } from "./store";
 
 // 입력은 브리지가 zod로 검사하므로 여기서는 값의 의미(id 존재 등)만 확인한다
@@ -143,6 +144,17 @@ export const handlers: Record<string, Handler> = {
   set_project: ({ name, width, height, fps, background }) => {
     s().setProjectProps(defined({ name, width, height, fps, background }));
     return stateSummary();
+  },
+
+  reframe: async ({ ratio, short, width, height, anchor, fit, blur }) => {
+    const p = s().project;
+    const r = RATIOS.find((x) => x.label === ratio);
+    need(r || (width && height), "ratio 또는 width·height를 주세요");
+    need(!short || TIERS.includes(short), `short는 ${TIERS.join("·")} 중 하나여야 합니다`);
+    const cur = Math.min(p.width, p.height);
+    const size = width && height ? { width, height } : canvasSize(r!.w, r!.h, short ?? (TIERS.includes(cur) ? cur : 1080));
+    const sum = await reframe({ ...size, anchor: anchor ?? "center", fit: fit ?? "fill", blur: blur ?? true });
+    return { ...sum, state: stateSummary() };
   },
 
   open_project: async ({ path }) => {

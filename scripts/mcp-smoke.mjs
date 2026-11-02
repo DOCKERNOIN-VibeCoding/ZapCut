@@ -46,7 +46,12 @@ await call("add_title", { template_id: title.id, start: 3.5, duration: 3, texts:
 const split = (await call("split_clip", { id: c2.clip_id, time: c2.start + 1 })).data;
 await call("delete_clips", { ids: [split.right_id] });
 await call("undo");
+// 16:9 → 9:16, 1:1까지만 자르고 여백은 블러 (640×360 원본 → 좌우 각 21.9%를 자름)
+const rf = (await call("reframe", { ratio: "9:16", fit: "box", anchor: "center" })).data;
+if (rf.width !== 720 || rf.height !== 1280 || rf.cropped < 2) throw new Error(`reframe 결과가 다릅니다: ${JSON.stringify(rf)}`);
 const state = (await call("get_state")).data;
+if (!state.tracks.find((t) => t.main).clips.every((c) => Math.abs((c.crop?.l ?? 0) - 0.2188) < 1e-3 && c.canvas === "blur")) throw new Error("1:1 자르기 결과가 다릅니다");
+console.log("포맷 변환:", `${rf.width}×${rf.height}, 자른 클립 ${rf.cropped}개, 텍스트 줄임 ${rf.shrunk}개`);
 console.log("타임라인:", state.tracks.map((t) => `${t.kind}${t.main ? "(main)" : ""}: ${t.clips.map((c) => `${c.name}[${c.start.toFixed(1)}-${c.end.toFixed(1)}]`).join(" ")}`).join(" | "));
 const shot = await call("screenshot", { time: 1 });
 writeFileSync(path.join(dir, "shot.png"), Buffer.from(shot.img.data, "base64"));

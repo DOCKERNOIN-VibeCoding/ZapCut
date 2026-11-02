@@ -1,10 +1,10 @@
 // 얼굴 찾기: 재생헤드 프레임에서 얼굴을 찾아 미리보기에 보여 주고, 고른 얼굴을 모자이크로 가린 뒤 따라가게 한다.
 // 모델은 YuNet(OpenCV Zoo, MIT), 실행은 onnxruntime-web(WASM). 파일은 메인 프로세스가 읽어 넘긴다 (file:// fetch 불가).
 import type { InferenceSession, Tensor } from "onnxruntime-web";
-import { decodeYuNet, toTensor, YUNET_SIZE } from "../core/faces";
+import { decodeYuNet, toTensor, YUNET_SIZE, type FaceBox } from "../core/faces";
 import { placement, toCanvas } from "../core/placement";
 import { clipEnd, effectClip, findClip, placeClip } from "../core/timeline";
-import { DEFAULT_MASK } from "../core/types";
+import { DEFAULT_MASK, type MediaItem } from "../core/types";
 import { frameAt } from "../preview/frame";
 import { useEditor } from "./store";
 import { trackRegion } from "./tracking";
@@ -22,6 +22,16 @@ function loadDetector() {
   return detector;
 }
 
+/** 원본 시각 srcTime의 프레임에서 얼굴을 찾는다 (원본 px 상자). 사진은 시각을 무시한다 */
+export async function detectFaces(media: MediaItem, srcTime: number): Promise<FaceBox[]> {
+  const { session, Tensor } = await loadDetector();
+  const bgr = await window.zapcut.grabFrame(media.path, media.kind === "video" ? srcTime : 0);
+  const out = await session.run({ [session.inputNames[0]]: new Tensor("float32", toTensor(bgr), [1, 3, YUNET_SIZE, YUNET_SIZE]) });
+  // 프레임은 긴 변을 640에 맞춰 왼쪽 위에 놓았다
+  const k = Math.min(YUNET_SIZE / media.width, YUNET_SIZE / media.height);
+  return decodeYuNet(out as never).map((f) => ({ ...f, x: f.x / k, y: f.y / k, w: f.w / k, h: f.h / k }));
+}
+
 /** 재생헤드에 보이는 가장 위 영상·사진에서 얼굴을 찾아 미리보기에 표시 */
 export async function findFaces() {
   const s = useEditor.getState();
@@ -33,15 +43,10 @@ export async function findFaces() {
   const media = layer.media!;
   s.setBusy("얼굴 찾기");
   try {
-    const { session, Tensor } = await loadDetector();
-    const bgr = await window.zapcut.grabFrame(media.path, layer.clip.kind === "video" ? layer.clip.in + layer.T * layer.clip.speed : 0);
-    const out = await session.run({ [session.inputNames[0]]: new Tensor("float32", toTensor(bgr), [1, 3, YUNET_SIZE, YUNET_SIZE]) });
-    // 프레임은 긴 변을 640에 맞춰 왼쪽 위에 놓았다
-    const k = Math.min(YUNET_SIZE / media.width, YUNET_SIZE / media.height);
     const pl = placement(layer.clip, media, layer.T, p.width, p.height);
-    const faces = decodeYuNet(out as never).map((f) => {
-      const a = toCanvas(pl, f.x / k, f.y / k);
-      const z = toCanvas(pl, (f.x + f.w) / k, (f.y + f.h) / k);
+    const faces = (await detectFaces(media, layer.clip.in + layer.T * layer.clip.speed)).map((f) => {
+      const a = toCanvas(pl, f.x, f.y);
+      const z = toCanvas(pl, f.x + f.w, f.y + f.h);
       return { x: Math.min(a.X, z.X) / p.width, y: Math.min(a.Y, z.Y) / p.height, w: Math.abs(z.X - a.X) / p.width, h: Math.abs(z.Y - a.Y) / p.height };
     });
     if (!faces.length) {

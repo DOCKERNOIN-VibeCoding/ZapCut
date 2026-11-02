@@ -1,4 +1,4 @@
-import { Download, FilePlus2, FolderOpen, Save, Upload, Zap } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, Proportions, Save, Upload, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { UpdateStatus } from "../../electron/main";
 import pkg from "../../package.json";
@@ -50,7 +50,7 @@ function UpdateButton() {
   );
 }
 
-export function TopBar({ onNew, onExport, onAbout }: { onNew: () => void; onExport: () => void; onAbout: () => void }) {
+export function TopBar({ onNew, onReframe, onExport, onAbout }: { onNew: () => void; onReframe: () => void; onExport: () => void; onAbout: () => void }) {
   const name = useEditor((s) => s.project.name);
   const dirty = useEditor((s) => s.dirty);
   const s = useEditor.getState;
@@ -77,6 +77,9 @@ export function TopBar({ onNew, onExport, onAbout }: { onNew: () => void; onExpo
         </button>
         <button className="menu-btn" title="저장 (Ctrl+S)" onClick={() => saveProject()}>
           <Save size={15} /> 저장
+        </button>
+        <button className="menu-btn" title="포맷 변환: 16:9 롱폼을 9:16 숏폼·1:1 등으로 바꾸고 영상을 새 비율에 맞게 자릅니다" onClick={onReframe}>
+          <Proportions size={15} /> 포맷 변환
         </button>
       </div>
       <div className="project-name">

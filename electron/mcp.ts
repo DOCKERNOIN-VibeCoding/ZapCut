@@ -102,6 +102,7 @@ const fail = (e: unknown) => ({ isError: true, content: [{ type: "text" as const
 const INSTRUCTIONS = `ZapCut(짭컷) 동영상 편집기를 조종하는 도구입니다. 편집기 창이 함께 열려 있어 사용자가 변경을 바로 보고 Ctrl+Z로 되돌릴 수 있습니다.
 
 기본 흐름: get_state로 상태 확인 → (new_project) → import_media(로컬 경로 또는 http URL) → add_to_timeline(append=true로 이어 붙이기) → add_text / add_title → update_clip으로 다듬기 → screenshot(time)으로 눈으로 확인 → export(path) → save_project(path).
+포맷 변환: 롱폼(16:9)을 숏폼(9:16)·스퀘어(1:1)로 만들 때는 reframe(ratio, anchor=center|face, fit=fill|box, blur) → screenshot으로 구도 확인 → export. 여러 포맷을 뽑으려면 포맷마다 reframe→export→undo를 반복하거나 save_project로 포맷별로 저장합니다.
 
 단위: 시간은 초. 위치 x, y는 캔버스 중심 기준 비율(0 = 가운데, ±0.5 = 화면 끝). scale 1 = 캔버스에 맞춤. fontSize는 1080p 기준 px. 색은 #rrggbb.
 트랙: 메인 트랙(main=true)의 클립은 빈틈 없이 이어지며 자석이 켜져 있으면 자동으로 당겨 붙습니다. 텍스트·타이틀·스티커는 메인 트랙 위의 별도 트랙에 놓입니다. 전환(transition)은 메인 트랙에서 다음 클립으로 넘어갈 때 적용됩니다.

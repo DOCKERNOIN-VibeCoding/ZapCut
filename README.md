@@ -36,7 +36,8 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 **편집 편의와 Claude 연동 (v1.2)**
 - **여러 클립 일괄 편집**: Ctrl+A(전체)나 Ctrl+클릭으로 여러 클립을 고르면 속성 패널에서 배속·크기·위치·조정·전환·텍스트 스타일 등을 한 번에 바꿈. 자동 캡션도 "선택한 클립" 또는 "모든 클립"을 골라 실행
 - **글자 단위 색·크기**: 텍스트 상자에서 글자를 드래그해 고르면 그 글자만 색과 크기를 바꿈 ("엽떡매니아"에서 "엽떡"만 빨갛게)
-- **Claude로 조종하기(MCP)**: 외부 제어를 켜면 Claude가 미디어 가져오기·편집·자막·내보내기를 대신함 ([아래 설명](#claude로-조종하기-mcp))
+- **포맷 변환**: 상단 메뉴 **포맷 변환**으로 16:9 롱폼을 9:16 숏폼·1:1 등으로 바꿈. 가운데 또는 얼굴(YuNet) 기준으로 양옆을 잘라 꽉 채우거나, 1:1까지만 자르고 여백은 흐린 원본으로 채움. 텍스트·타이틀은 화면 폭 안에 들어오게 줄임
+- **Claude로 조종하기(MCP)**: 외부 제어를 켜면 Claude가 미디어 가져오기·편집·자막·포맷 변환·내보내기를 대신함 ([아래 설명](#claude로-조종하기-mcp))
 
 **미리보기와 내보내기가 같은 결과**
 - 미리보기는 WebGL로 합성하고, 내보내기는 FFmpeg 필터 그래프로 렌더링합니다. 색(3D LUT), 움직임(수식), 마스크(수식)는 같은 데이터를 공유하고, 전환·효과는 실측으로 맞췄습니다.
@@ -67,7 +68,7 @@ Claude Code나 Claude Desktop 같은 MCP 클라이언트가 실행 중인 ZapCut
    Claude Desktop 등 설정 파일을 쓰는 클라이언트는 **JSON** 버튼으로 복사한 내용을 `mcpServers`에 넣습니다. 브리지는 앱 안의 Node로 실행되므로 Node를 따로 설치할 필요가 없습니다. ZapCut이 꺼져 있으면 브리지가 자동으로 켭니다.
 3. Claude에게 말로 시킵니다. 예: "이 폴더의 영상 세 개를 이어 붙이고 제목을 넣어 쇼츠용 9:16으로 내보내 줘".
 
-도구: `get_state`(상태) · `new_project` · `set_project` · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `list_library`(타이틀·전환·필터·효과·애니메이션 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info`.
+도구: `get_state`(상태) · `new_project` · `set_project` · `reframe`(포맷 변환: 비율·기준(가운데/얼굴)·자르기(꽉 채우기/1:1+여백)·블러) · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `list_library`(타이틀·전환·필터·효과·애니메이션 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info`.
 
 - 앱을 처음 켤 때 "복구할까요?" 같은 확인 창이 떠 있으면 먼저 답해야 Claude의 명령이 처리됩니다.
 - `ZapCut.exe --mcp`로도 브리지를 실행할 수 있습니다. 다만 VS Code 안의 터미널처럼 `ELECTRON_RUN_AS_NODE=1`이 설정된 환경에서는 위의 등록 명령 형태(스크립트 경로 지정)를 쓰세요.
