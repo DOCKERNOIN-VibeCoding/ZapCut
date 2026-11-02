@@ -11,8 +11,9 @@
   "author": "DOCKERNOIN",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && node scripts/collect-licenses.mjs && vite build",
+    "build": "tsc --noEmit && node scripts/build-mcp.mjs && node scripts/collect-licenses.mjs && vite build",
     "typecheck": "tsc --noEmit",
+    "mcp:build": "node scripts/build-mcp.mjs",
     "test": "vitest run",
     "start": "electron .",
     "ffmpeg:prepare": "node scripts/prepare-ffmpeg.mjs",
@@ -29,6 +30,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -38,7 +40,8 @@
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "vite-plugin-electron": "^0.29.0",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.4",
+    "zod": "^4.6.7"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
@@ -51,6 +54,7 @@
     "files": [
       "dist/**",
       "dist-electron/**",
+      "!dist-electron/mcp*",
       "package.json",
       "LICENSE"
     ],
@@ -75,6 +79,10 @@
       {
         "from": "ml",
         "to": "ml"
+      },
+      {
+        "from": "dist-electron/mcp.cjs",
+        "to": "mcp/zapcut-mcp.cjs"
       },
       {
         "from": "build/ffmpeg",

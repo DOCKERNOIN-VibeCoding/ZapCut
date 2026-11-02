@@ -1,5 +1,6 @@
-import { Beer, Github, RefreshCw, X, Zap } from "lucide-react";
-import { useState } from "react";
+import { Beer, Copy, Github, RefreshCw, X, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { ControlInfo, Settings } from "../../electron/control";
 import pkg from "../../package.json";
 
 const REPO = "https://github.com/DOCKERNOIN-VibeCoding/ZapCut";
@@ -14,6 +15,8 @@ const CREDITS: { name: string; use: string; license: string; key: string; url: s
   { name: "zustand", use: "편집 상태 관리", license: "MIT", key: "thirdParty", url: "https://github.com/pmndrs/zustand" },
   { name: "Lucide", use: "아이콘", license: "ISC", key: "thirdParty", url: "https://lucide.dev" },
   { name: "electron-updater", use: "자동 업데이트", license: "MIT", key: "thirdParty", url: "https://www.electron.build/auto-update" },
+  { name: "MCP TypeScript SDK", use: "외부 제어(MCP) 서버", license: "MIT", key: "thirdParty", url: "https://github.com/modelcontextprotocol/typescript-sdk" },
+  { name: "Zod", use: "외부 제어 명령 검사", license: "MIT", key: "thirdParty", url: "https://zod.dev" },
   { name: "ONNX Runtime Web", use: "얼굴 찾기 모델 실행", license: "MIT", key: "thirdParty", url: "https://onnxruntime.ai" },
   { name: "YuNet", use: "얼굴 찾기 모델 (OpenCV Zoo)", license: "MIT", key: "yunet", url: "https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet" },
   { name: "Pretendard", use: "글꼴", license: "OFL 1.1", key: "pretendard", url: "https://github.com/orioncactus/pretendard" },
@@ -40,6 +43,18 @@ function checkText(c: Check) {
 
 export function AboutDialog({ onClose }: { onClose: () => void }) {
   const [check, setCheck] = useState<Check>();
+  const [settings, setSettings] = useState<Settings>();
+  const [info, setInfo] = useState<ControlInfo>();
+  const [copied, setCopied] = useState<string>();
+  useEffect(() => {
+    window.zapcut.getSettings().then(setSettings);
+    window.zapcut.controlInfo().then(setInfo);
+  }, []);
+  const toggleControl = async (on: boolean) => {
+    setSettings(await window.zapcut.setSettings({ control: on }));
+    setInfo(await window.zapcut.controlInfo());
+  };
+  const copy = (what: string, text: string) => navigator.clipboard.writeText(text).then(() => setCopied(what));
   const open = (key: string) =>
     window.zapcut.openLicense(key).then((err) => {
       if (err) alert(`라이선스 문서를 열 수 없습니다: ${err}`);
@@ -86,6 +101,27 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
             <Beer size={16} /> 개발자에게 맥주 한 잔 사주기 <span className="muted small">Buy Me a Beer · $3</span>
           </button>
           {check && <p className="muted small">{checkText(check)}</p>}
+
+          <h4 className="about-sub">외부 제어 (MCP)</h4>
+          <label className="check">
+            <input type="checkbox" checked={!!settings?.control} onChange={(e) => toggleControl(e.target.checked)} /> Claude 같은 외부 프로그램이 이 프로그램을 조종할 수 있게 허용
+          </label>
+          <p className="muted small">
+            {settings?.control
+              ? `이 PC 안에서만 연결할 수 있습니다 (포트 ${info?.port ?? "…"}). Claude Code 터미널에서 아래 명령을 한 번 실행해 등록하세요.`
+              : "켜면 이 PC 안에서만 연결할 수 있는 통로가 열립니다. Claude가 미디어 가져오기·편집·내보내기를 대신할 수 있습니다."}
+          </p>
+          {settings?.control && info && (
+            <div className="cmd-row">
+              <code className="cmd">{info.command}</code>
+              <button className="ghost-btn" onClick={() => copy("command", info.command)} title="등록 명령 복사">
+                <Copy size={14} /> {copied === "command" ? "복사됨" : "복사"}
+              </button>
+              <button className="ghost-btn" onClick={() => copy("json", info.json)} title="Claude Desktop 등 설정 파일(JSON)용으로 복사">
+                {copied === "json" ? "복사됨" : "JSON"}
+              </button>
+            </div>
+          )}
 
           <h4 className="about-sub">오픈 소스 크레딧</h4>
           <ul className="credits">

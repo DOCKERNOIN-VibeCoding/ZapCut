@@ -10,6 +10,7 @@ import { buildExportPlan, FILTER_PLACEHOLDER, type ExportAssets, type ExportSett
 import type { MediaItem, Project } from "../src/core/types";
 import { SOUNDS } from "../src/library/sounds";
 import { trackBox, type Box } from "../src/core/track";
+import { runMcpBridge, setupControl } from "./control";
 import { encoders, extractFrame, makeProxy, needsProxy, probe, reverseRange, run, thumbnails, waveform } from "./ffmpeg";
 
 protocol.registerSchemesAsPrivileged([
@@ -68,6 +69,7 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
+  setupControl(win).catch((e) => console.error("control", e));
   if (process.env.VITE_DEV_SERVER_URL) win.loadURL(process.env.VITE_DEV_SERVER_URL);
   else win.loadFile(path.join(__dirname, "../dist/index.html"));
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -476,8 +478,9 @@ ipcMain.handle("license:open", (_e, key: string) => {
   return shell.openPath(file);
 });
 
-const single = app.requestSingleInstanceLock();
-if (!single) app.quit();
+// `ZapCut.exe --mcp`: 창 없이 MCP 브리지만 실행한다 (Claude 같은 MCP 클라이언트가 띄운다)
+if (process.argv.includes("--mcp")) runMcpBridge();
+else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", (_e, argv) => {
     const file = argv.find((a) => a.toLowerCase().endsWith(".zapcut"));

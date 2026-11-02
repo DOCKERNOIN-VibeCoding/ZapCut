@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { ControlInfo, Settings } from "./control";
 import type { CaptionRequest, SilenceRequest, TrackRequest, UpdateStatus } from "./main";
 
 const api = {
@@ -71,6 +72,19 @@ const api = {
   },
   checkUpdate: (): Promise<{ state: "dev" | "latest" } | { state: "available"; version: string } | { state: "error"; message: string }> => ipcRenderer.invoke("update:check"),
   openLicense: (key: string): Promise<string> => ipcRenderer.invoke("license:open", key),
+  // 외부 제어(MCP): 설정과 등록 정보, 메인이 보내는 명령을 렌더러 처리기(src/editor/control.ts)로 연결
+  getSettings: (): Promise<Settings> => ipcRenderer.invoke("settings:get"),
+  setSettings: (patch: Partial<Settings>): Promise<Settings> => ipcRenderer.invoke("settings:set", patch),
+  controlInfo: (): Promise<ControlInfo> => ipcRenderer.invoke("control:info"),
+  onControl: (fn: (name: string, args: unknown) => unknown) => {
+    ipcRenderer.on("control:call", async (_e, id: string, name: string, args: unknown) => {
+      try {
+        ipcRenderer.send("control:reply", id, { ok: true, result: (await fn(name, args)) ?? null });
+      } catch (e) {
+        ipcRenderer.send("control:reply", id, { ok: false, error: (e as Error).message ?? String(e) });
+      }
+    });
+  },
 };
 
 contextBridge.exposeInMainWorld("zapcut", api);

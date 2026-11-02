@@ -76,6 +76,13 @@ export function App() {
   // "startup"은 프로그램 시작 시라 취소할 수 없다
   const [creating, setCreating] = useState<"startup" | "new" | null>(null);
   useShortcuts(() => setExporting(true));
+  // 외부 제어(MCP)가 프로젝트를 만들거나 열면 새 프로젝트 창을 닫는다
+  useEffect(() => {
+    if (!creating) return;
+    return useEditor.subscribe((s, prev) => {
+      if (s.project !== prev.project) setCreating(null);
+    });
+  }, [creating]);
 
   // 시작: 파일 연결로 열린 프로젝트/미디어 → 자동 저장 복구 → 새 프로젝트 창
   useEffect(() => {

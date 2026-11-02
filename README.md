@@ -33,6 +33,9 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 - 직접 그린 스티커 56종, FFmpeg로 합성하는 효과음 18종·배경음악 5종
 - **영상 템플릿 16종**: 가져온 사진·영상을 슬롯에 넣고 전환·필터·카메라 움직임·텍스트·효과·스티커·음악을 한 번에 적용
 
+**편집 편의와 Claude 연동 (v1.2)**
+- **Claude로 조종하기(MCP)**: 외부 제어를 켜면 Claude가 미디어 가져오기·편집·자막·내보내기를 대신함 ([아래 설명](#claude로-조종하기-mcp))
+
 **미리보기와 내보내기가 같은 결과**
 - 미리보기는 WebGL로 합성하고, 내보내기는 FFmpeg 필터 그래프로 렌더링합니다. 색(3D LUT), 움직임(수식), 마스크(수식)는 같은 데이터를 공유하고, 전환·효과는 실측으로 맞췄습니다.
 - 내보내기: MP4/MOV(H.264+AAC), 480p~4K, 24~60fps, GPU 인코딩(NVENC/QSV/AMF) 자동 선택
@@ -49,6 +52,23 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 | Ctrl+I | 미디어 가져오기 | Ctrl+E | 내보내기 |
 | Ctrl+S / Ctrl+Shift+S | 저장 / 다른 이름으로 저장 | Ctrl+O | 열기 |
 
+## Claude로 조종하기 (MCP)
+
+Claude Code나 Claude Desktop 같은 MCP 클라이언트가 실행 중인 ZapCut을 조종할 수 있습니다. 창이 그대로 열려 있어서 Claude가 하는 편집을 바로 보고 Ctrl+Z로 되돌릴 수 있습니다.
+
+1. ZapCut 정보 창(상단 로고 클릭)에서 **외부 제어(MCP) 허용**을 켭니다. 기본은 꺼짐이고, 켜면 이 PC 안에서만 연결할 수 있는 통로(127.0.0.1의 임의 포트 + 토큰)가 열립니다.
+2. 같은 자리의 **복사** 버튼으로 등록 명령을 복사해 터미널에서 한 번 실행합니다. 모양은 다음과 같습니다.
+   ```
+   claude mcp add zapcut -e ELECTRON_RUN_AS_NODE=1 -- "C:\Program Files\ZapCut\ZapCut.exe" "C:\Program Files\ZapCut\resources\mcp\zapcut-mcp.cjs"
+   ```
+   Claude Desktop 등 설정 파일을 쓰는 클라이언트는 **JSON** 버튼으로 복사한 내용을 `mcpServers`에 넣습니다. 브리지는 앱 안의 Node로 실행되므로 Node를 따로 설치할 필요가 없습니다. ZapCut이 꺼져 있으면 브리지가 자동으로 켭니다.
+3. Claude에게 말로 시킵니다. 예: "이 폴더의 영상 세 개를 이어 붙이고 제목을 넣어 쇼츠용 9:16으로 내보내 줘".
+
+도구: `get_state`(상태) · `new_project` · `set_project` · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `list_library`(타이틀·전환·필터·효과·애니메이션 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info`.
+
+- 앱을 처음 켤 때 "복구할까요?" 같은 확인 창이 떠 있으면 먼저 답해야 Claude의 명령이 처리됩니다.
+- `ZapCut.exe --mcp`로도 브리지를 실행할 수 있습니다. 다만 VS Code 안의 터미널처럼 `ELECTRON_RUN_AS_NODE=1`이 설정된 환경에서는 위의 등록 명령 형태(스크립트 경로 지정)를 쓰세요.
+
 ## 개발
 
 ```powershell
@@ -56,6 +76,8 @@ npm install
 npm run dev          # 개발 모드 (Vite + Electron, 핫 리로드)
 npm test             # 단위 테스트 + 실제 ffmpeg 내보내기 통합 테스트
 npm run typecheck
+npm run mcp:build    # MCP 브리지(dist-electron/mcp.cjs)만 다시 묶기 (npm run build에 포함)
+node scripts/mcp-smoke.mjs   # 실행 중인 앱(외부 제어 켬)에 MCP로 붙어 가져오기→편집→내보내기까지 확인
 npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg를 번들)
 ```
 
@@ -72,7 +94,7 @@ npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg�
 ### 브랜치
 
 - `main`: 검증을 마친 버전
-- `dev/v1.1`: v1.1 개발 브랜치 (다음 버전은 `dev/v1.2`)
+- `dev/v1.2`: v1.2 개발 브랜치 (다음 버전은 `dev/v1.3`)
 
 ### 구조
 
@@ -81,9 +103,9 @@ npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg�
 | `src/core/` | 데이터 모델, 타임라인 연산, 수식 해석기, 모션·색·마스크·효과·전환, FFmpeg 내보내기 계획 |
 | `src/preview/` | WebGL 미리보기 합성기와 셰이더, 프레임 빌더 |
 | `src/library/` | 스티커·효과음·텍스트 템플릿·영상 템플릿 |
-| `src/editor/` | 상태 저장소(실행취소·제스처·키프레임), 비동기 동작(템플릿·스티커·소리·정지 화면·역재생) |
+| `src/editor/` | 상태 저장소(실행취소·제스처·키프레임), 비동기 동작(템플릿·스티커·소리·정지 화면·역재생), 외부 제어 명령 처리기(`control.ts`) |
 | `src/components/` | 상단바, 리소스 패널, 플레이어, 속성 패널, 타임라인, 내보내기 창 |
-| `electron/` | 메인 프로세스(미디어 프로토콜, ffprobe/ffmpeg, 저장, 내보내기, 자동 업데이트), 프리로드 |
+| `electron/` | 메인 프로세스(미디어 프로토콜, ffprobe/ffmpeg, 저장, 내보내기, 자동 업데이트), 프리로드, 외부 제어 채널(`control.ts`)과 MCP 브리지(`mcp.ts`·`mcpTools.ts`) |
 | `tests/` | vitest 테스트 |
 | `docs/cleanroom/` | 기능 명세서와 단계별 로드맵 |
 | `REA/` | 리버스엔지니어링 도구(morluto/rea). 저장소에는 포함하지 않으며 별도로 받습니다 |

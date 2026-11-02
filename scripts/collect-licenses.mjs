@@ -10,6 +10,9 @@ const out = path.join(root, "licenses", "THIRD-PARTY-NOTICES.txt");
 const dirs = execSync("npm ls --omit=dev --all --parseable", { cwd: root, encoding: "utf8" })
   .split(/\r?\n/)
   .filter((d) => d && path.resolve(d) !== root && !/[\\/]@types[\\/]/.test(d));
+// MCP 브리지(dist-electron/mcp.cjs)에 묶여 들어간 개발 의존성 (scripts/build-mcp.mjs가 적어 둔다)
+const bundled = path.join(root, "dist-electron", "mcp-packages.json");
+if (existsSync(bundled)) dirs.push(...JSON.parse(readFileSync(bundled, "utf8")));
 
 const seen = new Set();
 const parts = [];
