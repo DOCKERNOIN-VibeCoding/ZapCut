@@ -198,8 +198,9 @@ export function rippleDelete(p: Project, a: number, b: number): Project {
     if (c.start >= a - 1e-6 && end <= b + 1e-6) return [];
     const pieces: Clip[] = [];
     const left = c.start < a;
-    // 자막이 무음 구간에 걸쳐 있으면 말이 끝난 자리(a)에서 끝낸다 (뒤에 같은 문장 조각이 남지 않게)
-    const right = end > b && !(c.caption && left);
+    // 자막이 구간 양쪽에 걸쳐 있으면(한 자막 안의 쉼) 나누지 않고 잘린 만큼만 줄인다 (같은 문장이 두 조각으로 남거나 뒷문장이 사라지지 않게)
+    if (c.caption && left && end > b) return [{ ...c, duration: c.duration - gap }];
+    const right = end > b;
     // 가운데가 잘려 둘로 나뉘면 앞 조각의 전환·페이드아웃은 뺀다 (같은 원본끼리 이어지므로 그냥 컷)
     if (left) pieces.push({ ...c, duration: a - c.start, fadeOut: right ? 0 : c.fadeOut, transition: right ? undefined : c.transition });
     if (right) {

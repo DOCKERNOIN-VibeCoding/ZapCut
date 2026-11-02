@@ -44,9 +44,16 @@ describe("구간 잘라내고 당겨 붙이기", () => {
     expect(byId(p, "late")).toMatchObject({ start: 6, duration: 1 });
   });
 
-  it("무음에 걸친 자막은 말이 끝난 자리에서 끝나고 뒷조각이 남지 않는다", () => {
-    expect(byId(p, "capX")).toMatchObject({ start: 3.5, duration: 0.5 });
+  it("무음 양쪽에 걸친 자막은 나뉘지 않고 잘린 만큼만 짧아진다 (한 자막 안의 쉼에서 뒷문장이 사라지지 않게)", () => {
+    expect(byId(p, "capX")).toMatchObject({ start: 3.5, duration: 1 }); // 3.5~6.5에서 4~6을 잘라 3.5~4.5
     expect(p.tracks[1].clips).toHaveLength(1);
+  });
+
+  it("자막이 무음 안에서 끝나면 말이 끝난 자리에서 끝나고, 무음 안에서 시작하면 말이 다시 시작하는 자리부터", () => {
+    const q = rippleDelete(setup(), 5, 7); // capX 3.5~6.5: 뒤가 잘림
+    expect(byId(q, "capX")).toMatchObject({ start: 3.5, duration: 1.5 });
+    const r = rippleDelete(setup(), 3, 4); // capX 3.5~6.5: 앞이 잘림
+    expect(byId(r, "capX")).toMatchObject({ start: 3, duration: 2.5 });
   });
 
   it("앞이 잘린 자막은 같은 아이디로 남고 길이만 줄어든다", () => {
