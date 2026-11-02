@@ -332,7 +332,12 @@ function buildMainTrack(c: Ctx, track: Track): { label: string; length: number }
     } else if (head > 0) {
       const { def, d } = trans[i - 1]!;
       const l = g.label("xf");
-      g.add(`[${acc}][${seg}]xfade=transition=${def.xfade}:duration=${n(d)}:offset=${n(accLen - d)}[${l}]`);
+      // 앞이 concat 결과면 타임베이스가 1/1000000이고 세그먼트는 1/fps라 xfade가 거부한다 → 둘 다 같은 타임베이스로
+      const ta = g.label("tb");
+      const tb = g.label("tb");
+      g.add(`[${acc}]settb=AVTB[${ta}]`);
+      g.add(`[${seg}]settb=AVTB[${tb}]`);
+      g.add(`[${ta}][${tb}]xfade=transition=${def.xfade}:duration=${n(d)}:offset=${n(accLen - d)}[${l}]`);
       acc = l;
       accLen = accLen - d + len;
     } else {

@@ -90,6 +90,16 @@ describe.skipIf(!hasFfmpeg)("ffmpeg 내보내기", () => {
     }
   }, 300000);
 
+  it("전환: 첫 클립이 아닌 자리(앞에 이어 붙인 구간이 있을 때)에서도 된다", () => {
+    const a = { ...clipFromMedia(mv, 0), duration: 2 };
+    const b = { ...clipFromMedia(mv, 2), duration: 2, transition: { id: "fade", duration: 0.6 } };
+    const c = { ...clipFromMedia(mv2, 4), in: 1, duration: 2 };
+    const r = render(mainProject(a, b, c));
+    // 전환은 길이를 줄이지 않는다 (위 테스트와 같은 규칙)
+    expect(r.duration).toBeGreaterThan(5.85);
+    expect(r.duration).toBeLessThan(6.2);
+  }, 60000);
+
   it("전환 구간 앞뒤는 각 클립 색", () => {
     const a = { ...clipFromMedia(mv, 0), duration: 2, transition: { id: "fade", duration: 1 } };
     const b = { ...clipFromMedia(mv2, 2), duration: 2 };
