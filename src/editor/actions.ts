@@ -25,7 +25,7 @@ function svgToPng(svg: string, size = 512): Promise<string> {
   });
 }
 
-async function stickerMedia(def: StickerDef): Promise<MediaItem | undefined> {
+export async function stickerMedia(def: StickerDef): Promise<MediaItem | undefined> {
   const existing = ed().project.media.find((m) => m.sticker && m.name === def.name && m.path.includes(`sticker-${def.id}`));
   if (existing) return existing;
   const file = await window.zapcut.savePng(`sticker-${def.id}`, await svgToPng(def.svg));
@@ -33,7 +33,7 @@ async function stickerMedia(def: StickerDef): Promise<MediaItem | undefined> {
   return m;
 }
 
-async function soundMedia(id: string): Promise<MediaItem | undefined> {
+export async function soundMedia(id: string): Promise<MediaItem | undefined> {
   const def = SOUNDS.find((s) => s.id === id);
   if (!def) return undefined;
   const file = await window.zapcut.generateSound(id);
@@ -41,7 +41,7 @@ async function soundMedia(id: string): Promise<MediaItem | undefined> {
   return m;
 }
 
-const stickerClip = (m: MediaItem, start: number, duration: number, x: number, y: number, scale: number, loop?: string): Clip => ({
+export const stickerClip = (m: MediaItem, start: number, duration: number, x: number, y: number, scale: number, loop?: string): Clip => ({
   ...clipFromMedia(m, start),
   duration,
   transform: { ...DEFAULT_TRANSFORM, x, y, scale },
@@ -150,12 +150,16 @@ function cameraKeys(move: CameraMove | undefined, i: number, d: number): Clip["k
   }
 }
 
-export async function applyTemplate(def: TemplateDef) {
+/** opts.sources: 슬롯에 넣을 미디어(순서대로, 기본은 가져온 영상·사진 전부). opts.force: 묻지 않고 타임라인을 새로 구성 (외부 제어) */
+export async function applyTemplate(def: TemplateDef, opts: { sources?: MediaItem[]; force?: boolean } = {}) {
   const s = ed();
-  const sources = s.project.media.filter((m) => (m.kind === "video" || m.kind === "image") && !m.sticker);
-  if (!sources.length) return s.notify("먼저 사진이나 동영상을 가져오세요. 가져온 순서대로 템플릿 슬롯에 들어갑니다.");
+  const sources = opts.sources?.length ? opts.sources : s.project.media.filter((m) => (m.kind === "video" || m.kind === "image") && !m.sticker);
+  if (!sources.length) {
+    if (opts.force) throw new Error("먼저 사진이나 동영상을 가져오세요");
+    return s.notify("먼저 사진이나 동영상을 가져오세요. 가져온 순서대로 템플릿 슬롯에 들어갑니다.");
+  }
   const hasClips = s.project.tracks.some((t) => t.clips.length > 0);
-  if (hasClips && !confirm(`'${def.name}' 템플릿으로 타임라인을 새로 구성할까요? (실행 취소로 되돌릴 수 있습니다)`)) return;
+  if (hasClips && !opts.force && !confirm(`'${def.name}' 템플릿으로 타임라인을 새로 구성할까요? (실행 취소로 되돌릴 수 있습니다)`)) return;
   await withBusy("템플릿 적용", async () => {
     // 1) 필요한 에셋 준비
     const stickerMap = new Map<string, MediaItem>();

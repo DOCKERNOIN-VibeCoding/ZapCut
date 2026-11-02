@@ -46,6 +46,18 @@ await call("add_title", { template_id: title.id, start: 3.5, duration: 3, texts:
 const split = (await call("split_clip", { id: c2.clip_id, time: c2.start + 1 })).data;
 await call("delete_clips", { ids: [split.right_id] });
 await call("undo");
+// 3단계 도구: 배경음악(끝까지 채움)·스티커·효과·텍스트 템플릿·무음 찾기(적용 안 함)·자동 캡션(모델이 있을 때만)
+const sounds = (await call("list_library", { kind: "sounds" })).data;
+const bgm = (await call("add_sound", { id: (sounds.find((x) => x.duration >= 5) ?? sounds[0]).id, start: 0, fill: true, volume: 0.4 })).data;
+const loop = (await call("list_library", { kind: "animations" })).data.find((a) => a.kind === "loop");
+await call("add_sticker", { id: (await call("list_library", { kind: "stickers" })).data[0].id, start: 1, duration: 2, x: 0.3, y: -0.3, loop: loop?.id });
+await call("add_effect", { id: (await call("list_library", { kind: "effects" })).data[0].id, start: 2, duration: 1 });
+await call("add_text_template", { template_id: (await call("list_library", { kind: "text_templates" })).data[0].id, content: "텍스트 템플릿", start: 4, duration: 2 });
+const sil = (await call("cut_silence", { clip_ids: [c1.clip_id], apply: false })).data;
+console.log("배경음악 클립:", bgm.clip_ids.length, "· 무음 구간:", sil.ranges.length);
+const cap = await client.callTool({ name: "caption", arguments: { clip_ids: [c1.clip_id], model: "small", download_model: false } });
+const capText = cap.content.find((c) => c.type === "text")?.text ?? "";
+console.log(cap.isError ? `  - caption 건너뜀 (${capText})` : `  ✓ caption (자막 ${JSON.parse(capText).captions}개)`);
 // 16:9 → 9:16, 1:1까지만 자르고 여백은 블러 (640×360 원본 → 좌우 각 21.9%를 자름)
 const rf = (await call("reframe", { ratio: "9:16", fit: "box", anchor: "center" })).data;
 if (rf.width !== 720 || rf.height !== 1280 || rf.cropped < 2) throw new Error(`reframe 결과가 다릅니다: ${JSON.stringify(rf)}`);
@@ -60,5 +72,11 @@ await call("export", { path: out, resolution: 480, encoder: "libx264", quality: 
 const info = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", out], { encoding: "utf8" }));
 console.log("내보내기:", `${info.format.duration}s`, info.streams.map((s) => `${s.codec_type}:${s.codec_name} ${s.width ?? ""}x${s.height ?? ""}`).join(", "));
 await call("save_project", { path: path.join(dir, "smoke.zapcut") });
+// 영상 템플릿: 타임라인을 새로 구성 (슬롯 수만큼 메인 클립)
+const tpl = (await call("list_library", { kind: "templates" })).data[0];
+const ts = (await call("apply_template", { id: tpl.id, media_ids: [m1.id, m2.id] })).data;
+const mainClips = ts.tracks.find((t) => t.main).clips.length;
+if (mainClips !== tpl.slots) throw new Error(`템플릿 슬롯 ${tpl.slots}개인데 메인 클립 ${mainClips}개`);
+console.log("템플릿:", `${tpl.name} (${tpl.aspect}, 슬롯 ${tpl.slots}) → ${ts.width}×${ts.height}`);
 await client.close();
 console.log(`\n모두 통과. 결과 폴더: ${dir}`);

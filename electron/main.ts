@@ -375,6 +375,10 @@ ipcMain.handle("caption:saveSrt", async (_e, srt: string, name: string) => {
   await writeFile(r.filePath, srt, "utf8");
   return r.filePath;
 });
+// 외부 제어(export_srt)가 정한 경로에 그대로 저장
+ipcMain.handle("file:writeText", async (_e, file: string, text: string) => {
+  await writeFile(file, text, "utf8");
+});
 
 export interface SilenceRequest {
   path: string;

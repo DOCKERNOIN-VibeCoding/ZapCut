@@ -177,7 +177,7 @@ export function CaptionPanel() {
         {!isDefaultSilence(sil) && <span className="muted"> · 마지막에 쓴 값입니다</span>}
       </p>
       <div className="cover-row">
-        <button className={live ? "ghost-btn" : "primary-btn"} disabled={!!busy || !silenceTargets(project, selection).length} onClick={() => findSilence(sil)}>
+        <button className={live ? "ghost-btn" : "primary-btn"} disabled={!!busy || !silenceTargets(project, selection).length} onClick={() => findSilence(sil).catch(() => undefined)}>
           <Search size={14} /> 무음 찾기
         </button>
         {live && (

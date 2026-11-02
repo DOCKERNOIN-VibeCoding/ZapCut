@@ -112,6 +112,71 @@ export const TOOLS: Record<string, ToolDef> = {
       y: z.number().optional().describe("세로 위치(기본: 템플릿 값)"),
     },
   },
+  add_text_template: {
+    title: "텍스트 템플릿 추가",
+    description: "스타일·애니메이션이 정해진 텍스트 템플릿(list_library text_templates)으로 텍스트 클립을 추가한다. content로 내용을 바꾼다.",
+    schema: { template_id: id, content: z.string().optional(), start: time.optional(), duration: z.number().positive().optional(), x: z.number().optional(), y: z.number().optional() },
+  },
+  add_sticker: {
+    title: "스티커 추가",
+    description: "스티커(list_library stickers)를 새 트랙에 올린다. x, y는 캔버스 중심 기준 비율, scale은 캔버스 대비 크기(기본 0.35). loop는 반복 애니메이션 id(list_library animations).",
+    schema: {
+      id,
+      start: time.optional(),
+      duration: z.number().positive().optional().describe("기본 3초"),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      scale: z.number().positive().optional(),
+      loop: z.string().optional(),
+    },
+  },
+  add_sound: {
+    title: "효과음·배경음악 추가",
+    description: "라이브러리 소리(list_library sounds: 효과음·배경음악)를 FFmpeg로 만들어 오디오 트랙에 놓는다. fill=true면 start부터 프로젝트 끝까지 이어 붙이고 끝에서 페이드 아웃(배경음악용, 기본 볼륨 0.6).",
+    schema: {
+      id,
+      start: time.optional(),
+      duration: z.number().positive().optional().describe("소리 길이보다 길 수 없음"),
+      volume: z.number().min(0).max(2).optional(),
+      fill: z.boolean().optional(),
+      fade_out: z.number().min(0).optional().describe("초"),
+    },
+  },
+  add_effect: {
+    title: "효과 추가",
+    description: "화면 효과(list_library effects)를 효과 트랙에 놓는다. 아래 화면 전체에 적용되며 params로 세기 등을 바꾼다(기본값은 list_library effects의 params). 일부만 가리려면 update_clip으로 mask를 준다.",
+    schema: { id, start: time.optional(), duration: z.number().positive().optional().describe("기본 3초"), params: z.record(z.string(), z.number()).optional() },
+  },
+  apply_template: {
+    title: "영상 템플릿 적용",
+    description:
+      "영상 템플릿(list_library templates)으로 타임라인을 새로 구성한다: 미디어를 슬롯에 순서대로 넣고 전환·필터·카메라·텍스트·효과·스티커·음악을 붙인다. 캔버스 비율이 템플릿 비율로 바뀐다. 기존 타임라인은 지워지며(undo로 복구) media_ids를 생략하면 가져온 영상·사진 전부를 가져온 순서대로 쓴다.",
+    schema: { id, media_ids: z.array(z.string()).optional() },
+  },
+  caption: {
+    title: "자동 캡션",
+    description:
+      "소리 있는 클립의 말소리를 받아 적어 자막 클립(caption=true, 맨 위 자막 트랙)으로 만든다. 이 PC에서 whisper로 처리하며 처음 한 번 모델을 내려받는다(small 190MB, large 574MB). clip_ids 생략 시 소리 있는 클립 전부. 자막 내용은 update_clip(text.content)으로 고치고 export_srt로 SRT 저장. 길이에 따라 수 분 걸릴 수 있다.",
+    schema: {
+      clip_ids: z.array(id).optional(),
+      language: z.enum(["ko", "en", "ja", "zh", "auto"]).optional().describe("기본 ko"),
+      model: z.enum(["small", "large"]).optional().describe("기본 large"),
+      download_model: z.boolean().optional().describe("모델이 없으면 내려받음 (기본 true)"),
+    },
+  },
+  export_srt: { title: "SRT 저장", description: "자막(자동 캡션) 클립을 SRT 파일로 저장한다.", schema: { path: z.string().describe(".srt 경로") } },
+  cut_silence: {
+    title: "무음 잘라내기",
+    description:
+      "말소리 사이의 빈 구간을 찾아 모든 트랙(영상·소리·자막)에서 잘라내고 뒤를 당겨 붙인다(인터뷰·브이로그 템포 정리). clip_ids 생략 시 메인 트랙의 소리 있는 영상이 기준. apply=false면 잘라낼 구간만 돌려준다(타임라인에 빨간 띠로 표시). 자동 캡션 뒤에 쓰면 자막도 같이 정리된다.",
+    schema: {
+      clip_ids: z.array(id).optional(),
+      noise_db: z.number().optional().describe("기준 음량 dB, 기본 -35"),
+      min_dur: z.number().positive().optional().describe("최소 무음 길이 초, 기본 0.6"),
+      pad: z.number().min(0).optional().describe("말 앞뒤 여유 초, 기본 0.15"),
+      apply: z.boolean().optional().describe("기본 true"),
+    },
+  },
   list_library: {
     title: "라이브러리 목록",
     description:

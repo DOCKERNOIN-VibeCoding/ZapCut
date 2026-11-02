@@ -52,6 +52,7 @@ const api = {
   runCaption: (req: CaptionRequest): Promise<string> => ipcRenderer.invoke("caption:run", req),
   cancelCaption: () => ipcRenderer.invoke("caption:cancel"),
   saveSrt: (srt: string, name: string): Promise<string | undefined> => ipcRenderer.invoke("caption:saveSrt", srt, name),
+  writeText: (file: string, text: string): Promise<void> => ipcRenderer.invoke("file:writeText", file, text),
   onCaptionProgress: (fn: (p: { phase: "download" | "run"; v: number }) => void) => {
     const h = (_e: unknown, p: { phase: "download" | "run"; v: number }) => fn(p);
     ipcRenderer.on("caption:progress", h);

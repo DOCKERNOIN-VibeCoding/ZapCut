@@ -5,10 +5,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { z } from "zod";
 import { TOOLS } from "./mcpTools";
 
 declare const __APP_VERSION__: string; // scripts/build-mcp.mjs가 package.json 버전으로 채운다
@@ -109,23 +110,32 @@ const INSTRUCTIONS = `ZapCut(짭컷) 동영상 편집기를 조종하는 도구�
 export는 기본으로 끝날 때까지 기다립니다(수 분 걸릴 수 있음). 클라이언트에 시간 제한이 있으면 wait=false로 시작하고 export_status로 확인하세요.
 ID 목록(타이틀 템플릿·전환·필터·효과·애니메이션 등)은 list_library로 봅니다.`;
 
+/** 도구 호출. import_media의 URL은 먼저 내려받아 로컬 경로로 바꾼다 */
+async function invoke(name: string, args: Record<string, unknown>): Promise<unknown> {
+  if (name === "import_media") {
+    const paths = await Promise.all(((args.paths as string[]) ?? []).map(async (p) => (/^https?:\/\//i.test(p) ? ((await call("download", { url: p })) as { path: string }).path : p)));
+    return call(name, { ...args, paths });
+  }
+  return call(name, args);
+}
+
+interface Shot {
+  png: string;
+  width: number;
+  height: number;
+}
+
 async function main() {
   const server = new McpServer({ name: "zapcut", version: __APP_VERSION__ }, { instructions: INSTRUCTIONS });
   for (const [name, t] of Object.entries(TOOLS)) {
     server.registerTool(name, { title: t.title, description: t.description, inputSchema: t.schema, annotations: { readOnlyHint: !!t.readOnly } }, async (args) => {
       try {
+        const r = await invoke(name, args as Record<string, unknown>);
         if (name === "screenshot") {
-          const r = (await call(name, args)) as { png: string; width: number; height: number };
-          return { content: [{ type: "image" as const, data: r.png, mimeType: "image/png" }, { type: "text" as const, text: `${r.width}×${r.height}` }] };
+          const img = r as Shot;
+          return { content: [{ type: "image" as const, data: img.png, mimeType: "image/png" }, { type: "text" as const, text: `${img.width}×${img.height}` }] };
         }
-        if (name === "import_media") {
-          // URL은 먼저 내려받아 로컬 경로로 바꾼다
-          const paths = await Promise.all(
-            ((args as { paths: string[] }).paths ?? []).map(async (p) => (/^https?:\/\//i.test(p) ? ((await call("download", { url: p })) as { path: string }).path : p)),
-          );
-          return text(await call(name, { ...(args as object), paths }));
-        }
-        return text(await call(name, args));
+        return text(r);
       } catch (e) {
         return fail(e);
       }
@@ -134,7 +144,28 @@ async function main() {
   await server.connect(new StdioServerTransport());
 }
 
-main().catch((e) => {
-  console.error(e);
+/** 명령줄 호출: zapcut-mcp.cjs call <도구> ['<JSON 인자>'] [--out 파일] — MCP 클라이언트 없이 스크립트에서 쓸 때. `tools`는 도구 목록 */
+async function cli(argv: string[]) {
+  const outAt = argv.indexOf("--out");
+  const out = outAt >= 0 ? argv[outAt + 1] : undefined;
+  const [cmd, tool, json] = outAt >= 0 ? argv.filter((_, i) => i !== outAt && i !== outAt + 1) : argv;
+  if (cmd === "tools") return console.log(Object.entries(TOOLS).map(([n, t]) => `${n.padEnd(18)} ${t.title}`).join("\n"));
+  const def = TOOLS[tool];
+  if (!def) throw new Error(tool ? `알 수 없는 도구: ${tool} (tools로 목록 확인)` : "사용법: call <도구> ['<JSON 인자>'] [--out 파일]");
+  const args = z.object(def.schema).parse(JSON.parse(json ?? "{}"));
+  const r = await invoke(tool, args);
+  if (tool === "screenshot") {
+    const img = r as Shot;
+    const file = out ?? "zapcut-screenshot.png";
+    await writeFile(file, Buffer.from(img.png, "base64"));
+    return console.log(JSON.stringify({ path: file, width: img.width, height: img.height }));
+  }
+  console.log(JSON.stringify(r ?? null, null, 1));
+}
+
+const argv = process.argv.slice(2);
+const at = argv.findIndex((a) => a === "call" || a === "tools");
+(at >= 0 ? cli(argv.slice(at)) : main()).catch((e) => {
+  console.error((e as Error).message ?? e);
   process.exit(1);
 });

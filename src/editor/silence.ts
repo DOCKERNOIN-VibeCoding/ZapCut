@@ -39,10 +39,14 @@ export interface SilencePreview {
 }
 
 /** 1단계: 무음 구간을 찾아 타임라인에 미리 보여 준다 (잘라내지 않음) */
-export async function findSilence(opts: SilenceOptions) {
+/** 1단계: 무음 구간을 찾아 미리 보기로 둔다. ids를 주면(외부 제어) 선택 대신 그 클립이 기준. 실패는 알린 뒤 다시 던진다 */
+export async function findSilence(opts: SilenceOptions, ids?: string[]): Promise<SilencePreview | undefined> {
   const s = useEditor.getState();
-  const targets = silenceTargets(s.project, s.selection);
-  if (!targets.length) return s.notify("소리가 있는 영상이나 오디오 클립을 고르거나 메인 트랙에 놓으세요", "error");
+  const targets = silenceTargets(s.project, ids ?? s.selection);
+  if (!targets.length) {
+    s.notify("소리가 있는 영상이나 오디오 클립을 고르거나 메인 트랙에 놓으세요", "error");
+    return undefined;
+  }
   s.setBusy("무음 구간 찾기");
   s.setSilencePreview(undefined);
   try {
@@ -60,13 +64,19 @@ export async function findSilence(opts: SilenceOptions) {
       }
     }
     const merged = mergeRanges(ranges);
-    if (!merged.length) return useEditor.getState().notify("잘라낼 무음 구간이 없습니다. 기준 음량을 올리거나 최소 길이를 줄여 보세요");
+    if (!merged.length) {
+      useEditor.getState().notify("잘라낼 무음 구간이 없습니다. 기준 음량을 올리거나 최소 길이를 줄여 보세요");
+      return undefined;
+    }
     const total = merged.reduce((t, r) => t + (r.b - r.a), 0);
     const before = projectDuration(s.project);
-    useEditor.getState().setSilencePreview({ ranges: merged, total, before, after: before - total, project: s.project });
+    const preview: SilencePreview = { ranges: merged, total, before, after: before - total, project: s.project };
+    useEditor.getState().setSilencePreview(preview);
     useEditor.getState().notify(`무음 ${merged.length}곳, ${total.toFixed(1)}초가 잘립니다. 타임라인의 빨간 구간을 확인한 뒤 '잘라내기'를 누르세요`);
+    return preview;
   } catch (e) {
     useEditor.getState().notify(`무음 구간 찾기 실패: ${(e as Error).message}`, "error");
+    throw e;
   } finally {
     useEditor.getState().setBusy(undefined);
   }

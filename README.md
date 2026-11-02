@@ -10,7 +10,7 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 
 설치한 뒤에는 프로그램을 켤 때마다 새 버전을 확인합니다. 새 버전이 있으면 내려받아 두고 상단바에 "설치하고 재시작" 버튼을 보여 줍니다. 버튼을 누르지 않으면 프로그램을 끌 때 설치됩니다.
 
-## 지금 되는 기능 (v1.1)
+## 지금 되는 기능 (v1.2)
 
 **편집 기본 (1단계)**
 - 새 프로젝트 창: 화면 비율(16:9·9:16·1:1·4:3·3:4·21:9·첫 소스에 맞춤), 해상도(480p~4K), 프레임 속도를 먼저 정하고 시작
@@ -68,9 +68,10 @@ Claude Code나 Claude Desktop 같은 MCP 클라이언트가 실행 중인 ZapCut
    Claude Desktop 등 설정 파일을 쓰는 클라이언트는 **JSON** 버튼으로 복사한 내용을 `mcpServers`에 넣습니다. 브리지는 앱 안의 Node로 실행되므로 Node를 따로 설치할 필요가 없습니다. ZapCut이 꺼져 있으면 브리지가 자동으로 켭니다.
 3. Claude에게 말로 시킵니다. 예: "이 폴더의 영상 세 개를 이어 붙이고 제목을 넣어 쇼츠용 9:16으로 내보내 줘".
 
-도구: `get_state`(상태) · `new_project` · `set_project` · `reframe`(포맷 변환: 비율·기준(가운데/얼굴)·자르기(꽉 채우기/1:1+여백)·블러) · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `list_library`(타이틀·전환·필터·효과·애니메이션 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info`.
+도구: `get_state`(상태) · `new_project` · `set_project` · `reframe`(포맷 변환: 비율·기준(가운데/얼굴)·자르기(꽉 채우기/1:1+여백)·블러) · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `add_text_template` · `add_sticker` · `add_sound`(효과음·배경음악, 끝까지 채우기) · `add_effect` · `apply_template`(영상 템플릿) · `caption`(자동 캡션) · `export_srt` · `cut_silence`(무음 잘라내기) · `list_library`(타이틀·전환·필터·효과·애니메이션·스티커·소리·템플릿 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info`.
 
 - 앱을 처음 켤 때 "복구할까요?" 같은 확인 창이 떠 있으면 먼저 답해야 Claude의 명령이 처리됩니다.
+- MCP 클라이언트 없이 스크립트에서 쓰려면 같은 파일을 명령줄로 부릅니다: `ZapCut.exe --mcp call get_state`, `… call export '{"path":"C:\\out.mp4"}'`, `… call screenshot --out shot.png` (`tools`는 도구 목록). 결과는 JSON으로 출력됩니다.
 - `ZapCut.exe --mcp`로도 브리지를 실행할 수 있습니다. 다만 VS Code 안의 터미널처럼 `ELECTRON_RUN_AS_NODE=1`이 설정된 환경에서는 위의 등록 명령 형태(스크립트 경로 지정)를 쓰세요.
 
 ## 개발
