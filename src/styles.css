@@ -141,6 +141,7 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 /* 속성 패널 */
 .inspector { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-left: 1px solid var(--line); }
 .inspector-tabs { display: flex; height: 34px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.batch-note { padding: 6px 12px; font-size: 12px; color: var(--accent); background: rgba(34, 211, 197, 0.08); border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .inspector-tabs button { flex: 1; min-width: 0; padding: 0 2px; white-space: nowrap; font-size: 12px; color: var(--muted); border-bottom: 2px solid transparent; }
 .inspector-tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
 .inspector-body { flex: 1; overflow-y: auto; padding-bottom: 20px; }
@@ -150,6 +151,8 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 .field > label { color: #b9b9c2; font-size: 12px; }
 .field > select, .field > .text, .field > .value, .field > .chips, .field > .check { grid-column: 2 / span 3; }
 .field > .check { margin-top: 0; }
+.field > .hint { grid-column: 2 / span 3; }
+.field input.num { width: 64px; padding: 3px 6px; }
 .field .text { padding: 4px 8px; }
 .field select { padding: 3px 6px; }
 .num { width: 58px; padding: 2px 4px; text-align: right; }

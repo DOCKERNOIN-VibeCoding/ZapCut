@@ -85,7 +85,7 @@ interface EditorState {
   setBusy: (v?: string) => void;
   importFiles: (paths: string[], opts?: { keepAspect?: boolean; names?: string[]; sticker?: boolean }) => Promise<MediaItem[]>;
   valueAt: (clip: Clip, prop: KfProp, T: number) => number;
-  setClipProps: (id: string, patch: Partial<Record<KfProp, number>>, transient?: boolean) => void;
+  setClipProps: (id: string | string[], patch: Partial<Record<KfProp, number>>, transient?: boolean) => void;
   toggleKeyframe: (id: string, prop: KfProp) => void;
   clearKeyframes: (id: string, prop: KfProp) => void;
   setTransition: (clipId: string, t?: Transition) => void;
@@ -97,7 +97,7 @@ interface EditorState {
   addText: (content?: string, patch?: Partial<Clip["text"]>) => void;
   updateClip: (id: string, fn: (c: Clip) => Clip) => void;
   updateTrack: (id: string, patch: Partial<Track>) => void;
-  changeSpeed: (id: string, speed: number) => void;
+  changeSpeed: (id: string | string[], speed: number) => void;
   splitAtPlayhead: () => void;
   deleteSelected: () => void;
   trimSide: (side: "left" | "right") => void;
@@ -239,7 +239,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     updateClip: (id, fn) => get().commit((p) => mapClip(p, id, fn)),
     updateTrack: (id, patch) => get().commit((p) => ({ ...p, tracks: p.tracks.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
-    changeSpeed: (id, speed) => get().commit((p) => setSpeed(p, id, speed)),
+    changeSpeed: (id, speed) => get().commit((p) => (Array.isArray(id) ? id : [id]).reduce((acc, cid) => setSpeed(acc, cid, speed), p)),
 
     splitAtPlayhead: () => {
       const { project, selection, playhead } = get();
@@ -313,8 +313,9 @@ export const useEditor = create<EditorState>((set, get) => {
 
     // 키프레임이 있는 속성은 현재 시점의 키를, 없으면 기본값을 바꾼다
     setClipProps: (id, patch, transient) => {
+      const ids = Array.isArray(id) ? id : [id];
       const fn = (p: Project) =>
-        mapClip(p, id, (c) => {
+        ids.reduce((acc, cid) => mapClip(acc, cid, (c) => {
           const T = Math.min(Math.max(0, get().playhead - c.start), c.duration);
           let next = c;
           for (const [prop, v] of Object.entries(patch) as [KfProp, number][]) {
@@ -325,7 +326,7 @@ export const useEditor = create<EditorState>((set, get) => {
             else next = { ...next, transform: { ...next.transform, [prop]: v } };
           }
           return next;
-        });
+        }), p);
       if (transient && get().gestureBase) get().updateGesture(fn);
       else get().commit(fn);
     },

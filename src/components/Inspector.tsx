@@ -1,18 +1,25 @@
 import { Crosshair, Diamond, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Rewind, Snowflake, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { findFilter } from "../core/color";
 import { defaultParams, findEffect } from "../core/effects";
 import { IN_ANIMS, LOOP_ANIMS, OUT_ANIMS, findAnim } from "../core/motion";
 import { canvasSize, findClip, mapClip, MIN_CLIP, setSpeed, tierLabel, TIERS } from "../core/timeline";
+import { applyRun, shiftRuns, type RunPatch } from "../core/textRuns";
 import { titleLabel } from "../core/titles";
 import { isMaskProp, MASK_KF } from "../core/mask";
 import { findTransition, TRANSITIONS } from "../core/transitions";
-import { DEFAULT_ADJUST, DEFAULT_CANVAS, DEFAULT_CHROMA, DEFAULT_CROP, DEFAULT_MASK, DEFAULT_TRANSFORM, type Adjust, type BlendMode, type Clip, type KfProp, type MaskType, type TextStyle } from "../core/types";
+import { DEFAULT_ADJUST, DEFAULT_CANVAS, DEFAULT_CHROMA, DEFAULT_CROP, DEFAULT_MASK, DEFAULT_TRANSFORM, type Adjust, type BlendMode, type Clip, type KfProp, type MaskType, type Project, type TextStyle } from "../core/types";
 import { freezeFrame, importLut, reverseClip } from "../editor/actions";
 import { useEditor } from "../editor/store";
 import { trackRegion } from "../editor/tracking";
 
 type Edit = (fn: (c: Clip) => Clip, transient?: boolean) => void;
+
+/** 속성 패널이 다루는 클립들: 여러 개를 선택했으면 전부 (값을 바꾸면 모두에 적용) */
+const targetIds = (clipId: string) => {
+  const sel = useEditor.getState().selection;
+  return sel.length > 1 && sel.includes(clipId) ? sel : [clipId];
+};
 
 interface KfInfo {
   has: boolean;
@@ -67,6 +74,7 @@ function Select<T extends string>({ label, value, options, onChange }: { label: 
 function PropSlider({ clip, prop, label, min, max, step, unit, k = 1 }: { clip: Clip; prop: KfProp; label: string; min: number; max: number; step: number; unit: string; k?: number }) {
   const s = useEditor.getState;
   const playhead = useEditor((st) => st.playhead);
+  const batch = useEditor((st) => st.selection.length > 1);
   const T = playhead - clip.start;
   const keys = clip.keyframes?.[prop] ?? [];
   const value = s().valueAt(clip, prop, Math.min(Math.max(0, T), clip.duration)) * k;
@@ -79,9 +87,9 @@ function PropSlider({ clip, prop, label, min, max, step, unit, k = 1 }: { clip: 
       max={max}
       step={step}
       unit={unit}
-      onChange={(v, tr) => s().setClipProps(clip.id, { [prop]: v / k }, tr)}
-      onReset={() => s().setClipProps(clip.id, { [prop]: def })}
-      kf={{ has: keys.length > 0, at: keys.some((kk) => Math.abs(kk.t - T) < 0.02), onToggle: () => s().toggleKeyframe(clip.id, prop) }}
+      onChange={(v, tr) => s().setClipProps(targetIds(clip.id), { [prop]: v / k }, tr)}
+      onReset={() => s().setClipProps(targetIds(clip.id), { [prop]: def })}
+      kf={batch ? undefined : { has: keys.length > 0, at: keys.some((kk) => Math.abs(kk.t - T) < 0.02), onToggle: () => s().toggleKeyframe(clip.id, prop) }}
     />
   );
 }
@@ -116,7 +124,7 @@ function TransformSection({ clip, edit }: { clip: Clip; edit: Edit }) {
           <button className={`chip ${clip.flipV ? "on" : ""}`} onClick={() => edit((c) => ({ ...c, flipV: !c.flipV }))}>
             <FlipVertical2 size={13} /> 상하 반전
           </button>
-          <button className="chip" onClick={() => useEditor.getState().setClipProps(clip.id, { rotation: (useEditor.getState().valueAt(clip, "rotation", Math.max(0, useEditor.getState().playhead - clip.start)) + 90) % 360 })}>
+          <button className="chip" onClick={() => useEditor.getState().setClipProps(targetIds(clip.id), { rotation: (useEditor.getState().valueAt(clip, "rotation", Math.max(0, useEditor.getState().playhead - clip.start)) + 90) % 360 })}>
             <RotateCw size={13} /> 90° 회전
           </button>
         </div>
@@ -375,9 +383,11 @@ function AudioSection({ clip, edit }: { clip: Clip; edit: Edit }) {
 function SpeedSection({ clip }: { clip: Clip }) {
   const s = useEditor.getState;
   const presets = [0.25, 0.5, 1, 1.5, 2, 4];
+  const batch = useEditor((st) => st.selection.length > 1);
   const apply = (v: number, transient: boolean) => {
-    if (transient) s().updateGesture((p) => setSpeed(p, clip.id, v));
-    else s().changeSpeed(clip.id, v);
+    const ids = targetIds(clip.id);
+    if (transient) s().updateGesture((p) => ids.reduce((acc, id) => setSpeed(acc, id, v), p));
+    else s().changeSpeed(ids, v);
   };
   return (
     <section>
@@ -393,7 +403,7 @@ function SpeedSection({ clip }: { clip: Clip }) {
       <p className="muted small">
         원본 {(clip.duration * clip.speed).toFixed(1)}초 → 타임라인 {clip.duration.toFixed(1)}초. 오디오 음높이는 유지됩니다.
       </p>
-      {clip.kind === "video" && (
+      {clip.kind === "video" && !batch && (
         <div className="chips pad-top">
           <button className="chip" onClick={() => reverseClip(clip.id)}>
             <Rewind size={13} /> 역재생
@@ -448,14 +458,55 @@ function TitleSection({ clip, edit }: { clip: Clip; edit: Edit }) {
   );
 }
 
-function TextSection({ clip, edit }: { clip: Clip; edit: Edit }) {
+function TextSection({ clip, edit, batch }: { clip: Clip; edit: Edit; batch?: boolean }) {
   const t = clip.text!;
   const set = (patch: Partial<TextStyle>, tr = false) => edit((c) => ({ ...c, text: { ...c.text!, ...patch } }), tr);
   const fonts = useFonts(t.fontFamily);
+  // 글자 단위 스타일: 텍스트 상자에서 드래그해 고른 범위에만 색·크기를 입힌다
+  const ta = useRef<HTMLTextAreaElement>(null);
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const pickRange = () => {
+    const el = ta.current;
+    setRange(el && el.selectionStart < el.selectionEnd ? [el.selectionStart, el.selectionEnd] : null);
+  };
+  const runAt = range ? t.runs?.find((r) => r.start <= range[0] && r.end > range[0]) : undefined;
+  const styleRange = (patch: RunPatch) => range && set({ runs: applyRun(t.runs, range[0], range[1], patch) });
   return (
     <section>
       <h4>텍스트</h4>
-      <textarea className="text-input" rows={3} value={t.content} onChange={(e) => set({ content: e.target.value })} />
+      {!batch && (
+        <>
+          <textarea
+            ref={ta}
+            className="text-input"
+            rows={3}
+            value={t.content}
+            onSelect={pickRange}
+            onKeyUp={pickRange}
+            onMouseUp={pickRange}
+            onChange={(e) => set({ content: e.target.value, runs: shiftRuns(t.runs, t.content, e.target.value) })}
+          />
+          <div className="field">
+            <label>선택 글자</label>
+            {range ? (
+              <div className="chips">
+                <input type="color" value={runAt?.color ?? t.color} onChange={(e) => styleRange({ color: e.target.value })} title="고른 글자 색" />
+                <input className="num" type="number" min={8} max={400} step={2} value={runAt?.fontSize ?? t.fontSize} onChange={(e) => styleRange({ fontSize: Math.max(8, Math.min(400, +e.target.value)) })} title="고른 글자 크기 (1080p 기준 px)" />
+                <button className="chip" onClick={() => styleRange({ color: null, fontSize: null })}>
+                  원래대로
+                </button>
+              </div>
+            ) : (
+              <span className="muted small hint">위 상자에서 글자를 드래그해 고르면 그 글자만 색·크기를 바꿀 수 있습니다</span>
+            )}
+          </div>
+          {!!t.runs?.length && (
+            <button className="link tiny" onClick={() => set({ runs: undefined })}>
+              글자별 색·크기 모두 지우기
+            </button>
+          )}
+        </>
+      )}
       <div className="field">
         <label>글꼴</label>
         <select value={t.fontFamily} onChange={(e) => set({ fontFamily: e.target.value })} style={{ fontFamily: `"${t.fontFamily}"` }}>
@@ -579,54 +630,68 @@ export function Inspector() {
   const project = useEditor((s) => s.project);
   const selection = useEditor((s) => s.selection);
   const [tab, setTab] = useState("main");
-  const found = selection.length === 1 ? findClip(project, selection[0]) : undefined;
-  if (!found) {
+  const found = selection.map((id) => findClip(project, id)).filter((f): f is NonNullable<typeof f> => !!f);
+  if (!found.length) {
     return (
       <div className="inspector">
-        <div className="panel-title">{selection.length > 1 ? `${selection.length}개 클립 선택됨` : "속성"}</div>
+        <div className="panel-title">속성</div>
         <ProjectSection />
       </div>
     );
   }
-  const { clip, track } = found;
+  const { clip } = found[0];
+  const ids = found.map((f) => f.clip.id);
+  const batch = ids.length > 1;
   const media = project.media.find((m) => m.id === clip.mediaId);
+  // 여러 클립을 선택했으면 같은 변경을 전부에 적용한다 (패널에 보이는 값은 첫 클립)
   const edit: Edit = (fn, transient) => {
     const s = useEditor.getState();
-    if (transient) s.updateGesture((p) => mapClip(p, clip.id, fn));
-    else s.updateClip(clip.id, fn);
+    const apply = (p: Project) => ids.reduce((acc, id) => mapClip(acc, id, fn), p);
+    if (transient) s.updateGesture(apply);
+    else s.commit(apply);
   };
-  const isMain = !!track.main;
-  const tabs: { id: string; label: string }[] =
-    clip.kind === "text" && clip.title
+  const isMain = found.some((f) => !!f.track.main);
+  // 종류가 섞였거나 타이틀·효과가 다르면 공통 항목만 보여 준다
+  const uniform = found.every((f) => f.clip.kind === clip.kind && !!f.clip.title === !!clip.title && (clip.kind !== "effect" || f.clip.effect?.id === clip.effect?.id));
+  const tabs: { id: string; label: string }[] = !uniform
+    ? [
+        { id: "transform", label: "화면" },
+        { id: "anim", label: "애니메이션" },
+        { id: "adjust", label: "조정" },
+      ]
+    : clip.kind === "text" && clip.title
       ? [{ id: "main", label: "타이틀" }, { id: "transform", label: "화면" }]
       : clip.kind === "text"
-      ? [{ id: "main", label: "텍스트" }, { id: "transform", label: "화면" }, { id: "anim", label: "애니메이션" }]
-      : clip.kind === "audio"
-        ? [{ id: "main", label: "오디오" }, { id: "speed", label: "속도" }]
-        : clip.kind === "effect"
-          ? [{ id: "main", label: "효과" }, { id: "region", label: "영역" }]
-          : clip.kind === "adjust"
-            ? [{ id: "main", label: "조정" }, { id: "region", label: "영역" }]
-            : [
-                { id: "main", label: "화면" },
-                { id: "anim", label: "애니메이션" },
-                { id: "mask", label: "마스크" },
-                { id: "adjust", label: "조정" },
-                ...(clip.kind === "video" && media?.hasAudio ? [{ id: "audio", label: "오디오" }] : []),
-                ...(clip.kind === "video" ? [{ id: "speed", label: "속도" }] : []),
-              ];
-  const active = tabs.some((t) => t.id === tab) ? tab : "main";
+        ? [{ id: "main", label: "텍스트" }, { id: "transform", label: "화면" }, { id: "anim", label: "애니메이션" }]
+        : clip.kind === "audio"
+          ? [{ id: "main", label: "오디오" }, { id: "speed", label: "속도" }]
+          : clip.kind === "effect"
+            ? [{ id: "main", label: "효과" }, { id: "region", label: "영역" }]
+            : clip.kind === "adjust"
+              ? [{ id: "main", label: "조정" }, { id: "region", label: "영역" }]
+              : [
+                  { id: "main", label: "화면" },
+                  { id: "anim", label: "애니메이션" },
+                  { id: "mask", label: "마스크" },
+                  { id: "adjust", label: "조정" },
+                  ...(clip.kind === "video" && media?.hasAudio ? [{ id: "audio", label: "오디오" }] : []),
+                  ...(clip.kind === "video" ? [{ id: "speed", label: "속도" }] : []),
+                ];
+  // 일괄 편집에서는 클립 하나를 가리키는 항목(마스크·추적 영역)과 타이틀 내용 편집은 뺀다
+  const visible = batch ? tabs.filter((t) => t.id !== "mask" && t.id !== "region" && !(t.id === "main" && clip.title)) : tabs;
+  const active = visible.some((t) => t.id === tab) ? tab : visible[0].id;
   return (
     <div className="inspector">
+      {batch && <div className="batch-note">선택한 클립 {ids.length}개에 함께 적용됩니다</div>}
       <div className="inspector-tabs">
-        {tabs.map((t) => (
+        {visible.map((t) => (
           <button key={t.id} className={active === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
             {t.label}
           </button>
         ))}
       </div>
       <div className="inspector-body">
-        {active === "main" && clip.kind === "text" && (clip.title ? <TitleSection clip={clip} edit={edit} /> : <TextSection clip={clip} edit={edit} />)}
+        {active === "main" && clip.kind === "text" && (clip.title ? <TitleSection clip={clip} edit={edit} /> : <TextSection clip={clip} edit={edit} batch={batch} />)}
         {active === "main" && clip.kind === "audio" && <AudioSection clip={clip} edit={edit} />}
         {active === "main" && clip.kind === "effect" && <EffectSection clip={clip} edit={edit} />}
         {active === "main" && clip.kind === "adjust" && <AdjustSection clip={clip} edit={edit} />}

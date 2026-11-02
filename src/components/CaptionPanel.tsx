@@ -85,14 +85,31 @@ export function CaptionPanel() {
     .flatMap((t) => t.clips)
     .filter((c) => c.caption)
     .sort((a, b) => a.start - b.start);
-  const targets = captionTargets(project, selection);
-  const selectedTargets = targets.some((c) => selection.includes(c.id));
+  // 대상: 소리 있는 클립을 선택했으면 그것들, 아니면 전부. 선택이 있어도 "모든 클립"으로 바꿀 수 있다
+  const allTargets = captionTargets(project, []);
+  const selTargets = allTargets.filter((c) => selection.includes(c.id));
+  const [scopeAll, setScopeAll] = useState(false);
+  const all = scopeAll || !selTargets.length;
+  const targets = all ? allTargets : selTargets;
 
   return (
     <>
       <p className="muted small">
-        {targets.length ? `${selectedTargets ? "선택한 클립" : "소리가 있는 모든 클립"} ${targets.length}개의 말소리를 받아 적어 자막 클립으로 만듭니다.` : "소리가 있는 영상이나 오디오 클립을 타임라인에 놓으세요."} 이 PC에서만 처리하며, 인터넷은 모델을 처음 받을 때만 씁니다.
+        {targets.length ? `${all ? "소리가 있는 모든 클립" : "선택한 클립"} ${targets.length}개의 말소리를 받아 적어 자막 클립으로 만듭니다.` : "소리가 있는 영상이나 오디오 클립을 타임라인에 놓으세요."} 이 PC에서만 처리하며, 인터넷은 모델을 처음 받을 때만 씁니다.
       </p>
+      {selTargets.length > 0 && allTargets.length > selTargets.length && (
+        <div className="field">
+          <label>대상</label>
+          <div className="chips">
+            <button className={`chip ${!all ? "on" : ""}`} onClick={() => setScopeAll(false)}>
+              선택한 클립 {selTargets.length}개
+            </button>
+            <button className={`chip ${all ? "on" : ""}`} onClick={() => setScopeAll(true)}>
+              모든 클립 {allTargets.length}개
+            </button>
+          </div>
+        </div>
+      )}
       <div className="field">
         <label>언어</label>
         <select value={lang} onChange={(e) => setLang(e.target.value)}>
@@ -115,7 +132,7 @@ export function CaptionPanel() {
         </select>
       </div>
       <div className="cover-row">
-        <button className="primary-btn" disabled={!!busy || !targets.length} onClick={() => autoCaption({ language: lang, modelId: model }).then(refresh)}>
+        <button className="primary-btn" disabled={!!busy || !targets.length} onClick={() => autoCaption({ language: lang, modelId: model, all }).then(refresh)}>
           <Captions size={14} /> 자동 캡션
         </button>
         {busy && (

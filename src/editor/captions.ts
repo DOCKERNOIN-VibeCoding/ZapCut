@@ -7,6 +7,7 @@ import { useEditor } from "./store";
 export interface CaptionOptions {
   language: string;
   modelId: string;
+  all?: boolean; // 선택과 상관없이 소리 있는 클립 전부
 }
 
 /** 받아 적을 클립: 선택한 소리 있는 클립, 없으면 프로젝트의 소리 있는 영상·오디오 클립 전부 (시간순) */
@@ -56,7 +57,7 @@ export function addCaptions(p: Project, clips: Clip[]): Project {
 
 export async function autoCaption(opts: CaptionOptions) {
   const s = useEditor.getState();
-  const targets = captionTargets(s.project, s.selection);
+  const targets = captionTargets(s.project, opts.all ? [] : s.selection);
   if (!targets.length) return s.notify("받아 적을 소리가 있는 영상이나 오디오 클립이 없습니다", "error");
   const model = await ensureModel(opts.modelId);
   if (!model) return;

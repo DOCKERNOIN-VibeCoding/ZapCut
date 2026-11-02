@@ -3,6 +3,7 @@ import {
   ArrowRightToLine,
   Eye,
   EyeOff,
+  ListChecks,
   Lock,
   Magnet,
   Redo2,
@@ -313,6 +314,10 @@ export function Timeline() {
           </button>
           <button className="icon-btn" title="삭제 (Delete)" onClick={() => ed().deleteSelected()}>
             <Trash2 size={16} />
+          </button>
+          <span className="sep" />
+          <button className="icon-btn" title="전체 선택 (Ctrl+A) · Ctrl+클릭으로 여러 개 고를 수 있습니다" onClick={() => ed().select(project.tracks.flatMap((t) => t.clips.map((c) => c.id)))}>
+            <ListChecks size={16} />
           </button>
         </div>
         <div className="tool-group">

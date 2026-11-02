@@ -71,6 +71,15 @@ export interface TextStyle {
   glow?: string; // 네온 효과 색 ("" = 없음)
   letterSpacing?: number; // px
   lineHeight?: number; // 배수 (기본 1.25)
+  runs?: TextRun[]; // 글자 단위로 다른 색·크기 (src/core/textRuns.ts)
+}
+
+/** 글자 범위별 스타일 (content의 UTF-16 인덱스 [start, end)). 없는 속성은 TextStyle 값을 따른다 */
+export interface TextRun {
+  start: number;
+  end: number;
+  color?: string;
+  fontSize?: number;
 }
 
 export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut" | "hold";
