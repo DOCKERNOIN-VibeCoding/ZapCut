@@ -73,17 +73,25 @@ ZapCut 창은 그대로 열려 있으므로 Claude가 편집하는 과정을 화
 
 ### B. Claude Code를 쓰는 경우
 
-1. ZapCut 정보 창에서 **복사** 버튼을 눌러 등록 명령을 복사합니다. 모양은 다음과 같습니다.
+ZapCut 정보 창에서 아래 두 방법 중 하나를 고르세요. 어느 쪽이든 한 번만 하면 되고, 어느 폴더에서 연 Claude Code에서든 ZapCut을 쓸 수 있습니다.
+
+**방법 1. 바로 등록 (가장 쉬움)**
+
+1. **Claude Code에 바로 등록** 버튼을 누릅니다.
+2. "등록했습니다"가 보이면 Claude Code를 새로 시작합니다.
+
+**방법 2. 명령 붙여 넣기**
+
+1. **복사** 버튼을 눌러 등록 명령을 복사합니다. 모양은 다음과 같습니다.
 
 ```
-claude mcp add zapcut -e ELECTRON_RUN_AS_NODE=1 -- "C:\...\ZapCut.exe" "C:\...\resources\mcp\zapcut-mcp.cjs"
+claude mcp add zapcut -s user -e ELECTRON_RUN_AS_NODE=1 -- "C:\...\ZapCut.exe" "C:\...\resources\mcp\zapcut-mcp.cjs"
 ```
 
-2. PowerShell이나 명령 프롬프트에 붙여 넣고 실행합니다.
+2. Claude Code 대화창이나 PowerShell·명령 프롬프트에 붙여 넣고 실행합니다.
 3. `claude mcp list`를 실행해 목록에 **zapcut**이 보이면 완료입니다.
 
-> 💡 위 명령은 **명령을 실행한 폴더에서만** ZapCut을 쓸 수 있게 등록합니다. 어느 폴더에서든 쓰고 싶다면 `zapcut` 바로 뒤에 `-s user`를 넣어 실행하세요.
-> 예: `claude mcp add zapcut -s user -e ELECTRON_RUN_AS_NODE=1 -- "…ZapCut.exe" "…zapcut-mcp.cjs"`
+> 💡 터미널에서 "claude를 찾을 수 없다"는 오류가 나면 Claude Code가 PATH에 잡혀 있지 않은 것입니다. 방법 1을 쓰면 PATH와 상관없이 등록됩니다.
 
 ---
 

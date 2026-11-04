@@ -2,12 +2,13 @@
 // 127.0.0.1의 임의 포트에 HTTP 서버를 열고 포트·토큰을 userData/control.json에 적어 두면 브리지(electron/mcp.ts)가 읽어 연결한다.
 // 명령은 이름이 정해진 것만 받는다: 렌더러의 처리기(src/editor/control.ts) 또는 아래 메인 처리기. 설정에서 켜야 동작하며 기본은 꺼짐.
 import { app, BrowserWindow, ipcMain } from "electron";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createWriteStream, existsSync, rmSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -198,6 +199,9 @@ export async function stopControl() {
   await rm(controlPath(), { force: true }).catch(() => undefined);
 }
 
+// Claude Code 등록 인자 (-s user: 어느 폴더에서 연 Claude Code에서든 쓸 수 있게)
+const MCP_ADD = ["mcp", "add", "zapcut", "-s", "user", "-e", "ELECTRON_RUN_AS_NODE=1", "--"];
+
 export function controlInfo(): ControlInfo {
   const exe = process.execPath;
   const script = mcpScriptPath();
@@ -206,9 +210,45 @@ export function controlInfo(): ControlInfo {
     port: server ? port : undefined,
     exe,
     script,
-    command: `claude mcp add zapcut -e ELECTRON_RUN_AS_NODE=1 -- "${exe}" "${script}"`,
+    command: `claude ${MCP_ADD.join(" ")} "${exe}" "${script}"`,
     json: JSON.stringify({ mcpServers: { zapcut: { command: exe, args: [script], env: { ELECTRON_RUN_AS_NODE: "1" } } } }, null, 2),
   };
+}
+
+/** Claude Code 실행 파일. PATH가 없거나 잘못돼 있어도 찾도록 기본 설치 위치도 본다 */
+function findClaude(): string | undefined {
+  const dirs = [
+    ...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean),
+    path.join(os.homedir(), ".local", "bin"), // 기본 설치
+    path.join(process.env.APPDATA ?? "", "npm"), // npm 설치
+  ];
+  for (const d of dirs) for (const f of ["claude.exe", "claude.cmd"]) if (existsSync(path.join(d, f))) return path.join(d, f);
+}
+
+function runClaude(claude: string, args: string[]) {
+  // .cmd(npm 설치)는 cmd.exe를 거쳐야 실행된다
+  const cmd = claude.toLowerCase().endsWith(".cmd");
+  const file = cmd ? "cmd.exe" : claude;
+  const argv = cmd ? ["/d", "/s", "/c", `"${[claude, ...args].map((a) => `"${a}"`).join(" ")}"`] : args;
+  return new Promise<void>((resolve, reject) =>
+    execFile(file, argv, { timeout: 60_000, windowsHide: true, windowsVerbatimArguments: cmd }, (err, stdout, stderr) =>
+      err ? reject(new Error((stderr || stdout || err.message).trim())) : resolve(),
+    ),
+  );
+}
+
+/** 정보 창 '바로 등록': 명령을 붙여 넣지 않고 Claude Code(사용자 범위)에 등록한다 */
+async function registerClaude(): Promise<{ ok: boolean; message: string }> {
+  const claude = findClaude();
+  if (!claude) return { ok: false, message: "Claude Code를 찾지 못했습니다. 위 명령을 Claude Code에 붙여 넣어 등록하세요." };
+  // 이미 등록돼 있으면(예전 설치 경로 등) 지우고 다시 등록한다
+  await runClaude(claude, ["mcp", "remove", "zapcut", "-s", "user"]).catch(() => undefined);
+  try {
+    await runClaude(claude, [...MCP_ADD, process.execPath, mcpScriptPath()]);
+    return { ok: true, message: "등록했습니다. Claude Code를 새로 시작하면 ZapCut을 쓸 수 있습니다." };
+  } catch (e) {
+    return { ok: false, message: `등록하지 못했습니다: ${(e as Error).message}` };
+  }
 }
 
 /** 창을 만든 뒤 호출. 설정이 켜져 있으면 서버를 띄운다 */
@@ -228,6 +268,7 @@ ipcMain.handle("settings:set", async (_e, patch: Partial<Settings>) => {
   return s;
 });
 ipcMain.handle("control:info", () => controlInfo());
+ipcMain.handle("control:register", () => registerClaude());
 // 꺼질 때 다른 프로세스가 죽은 포트로 연결하지 않도록 파일을 지운다
 app.on("will-quit", () => {
   if (server) rmSync(controlPath(), { force: true });

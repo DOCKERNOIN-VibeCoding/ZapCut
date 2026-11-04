@@ -61,9 +61,11 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 Claude Code나 Claude Desktop 같은 MCP 클라이언트가 실행 중인 ZapCut을 조종할 수 있습니다. 창이 그대로 열려 있어서 Claude가 하는 편집을 바로 보고 Ctrl+Z로 되돌릴 수 있습니다.
 
 1. ZapCut 정보 창(상단 로고 클릭)에서 **외부 제어(MCP) 허용**을 켭니다. 기본은 꺼짐이고, 켜면 이 PC 안에서만 연결할 수 있는 통로(127.0.0.1의 임의 포트 + 토큰)가 열립니다.
-2. 같은 자리의 **복사** 버튼으로 등록 명령을 복사해 터미널에서 한 번 실행합니다. 모양은 다음과 같습니다.
+2. Claude Code에 등록합니다. 방법은 두 가지입니다.
+   - **Claude Code에 바로 등록** 버튼: ZapCut이 Claude Code를 찾아 직접 등록합니다. PATH에 `claude`가 잡혀 있지 않아도 됩니다.
+   - **복사** 버튼으로 등록 명령을 복사해 Claude Code(또는 터미널)에 붙여 넣습니다. 모양은 다음과 같습니다.
    ```
-   claude mcp add zapcut -e ELECTRON_RUN_AS_NODE=1 -- "C:\Program Files\ZapCut\ZapCut.exe" "C:\Program Files\ZapCut\resources\mcp\zapcut-mcp.cjs"
+   claude mcp add zapcut -s user -e ELECTRON_RUN_AS_NODE=1 -- "C:\Program Files\ZapCut\ZapCut.exe" "C:\Program Files\ZapCut\resources\mcp\zapcut-mcp.cjs"
    ```
    Claude Desktop 등 설정 파일을 쓰는 클라이언트는 **JSON** 버튼으로 복사한 내용을 `mcpServers`에 넣습니다. 브리지는 앱 안의 Node로 실행되므로 Node를 따로 설치할 필요가 없습니다. ZapCut이 꺼져 있으면 브리지가 자동으로 켭니다.
 3. Claude에게 말로 시킵니다. 예: "이 폴더의 영상 세 개를 이어 붙이고 제목을 넣어 쇼츠용 9:16으로 내보내 줘".

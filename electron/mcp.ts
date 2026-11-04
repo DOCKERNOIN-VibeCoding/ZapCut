@@ -1,6 +1,6 @@
 // ZapCut MCP 브리지: Claude 같은 MCP 클라이언트가 stdio로 띄우는 서버. Electron을 쓰지 않는 순수 Node 스크립트로,
 // 실행 중인 ZapCut의 제어 채널(userData/control.json에 적힌 127.0.0.1 포트·토큰)에 명령을 전달한다.
-// 등록: claude mcp add zapcut -e ELECTRON_RUN_AS_NODE=1 -- "<ZapCut.exe>" "<이 파일>"  (ZapCut 정보 창에서 복사할 수 있다)
+// 등록: claude mcp add zapcut -s user -e ELECTRON_RUN_AS_NODE=1 -- "<ZapCut.exe>" "<이 파일>"  (ZapCut 정보 창에서 복사하거나 '바로 등록')
 // stdout은 MCP 프로토콜 전용이다. 로그는 console.error로만 쓴다.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

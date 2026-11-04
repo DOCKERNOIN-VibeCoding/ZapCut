@@ -1,4 +1,4 @@
-import { Beer, Copy, Github, RefreshCw, X, Zap } from "lucide-react";
+import { Beer, Copy, Github, PlugZap, RefreshCw, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ControlInfo, Settings } from "../../electron/control";
 import pkg from "../../package.json";
@@ -46,6 +46,8 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<Settings>();
   const [info, setInfo] = useState<ControlInfo>();
   const [copied, setCopied] = useState<string>();
+  const [registering, setRegistering] = useState(false);
+  const [registered, setRegistered] = useState<{ ok: boolean; message: string }>();
   useEffect(() => {
     window.zapcut.getSettings().then(setSettings);
     window.zapcut.controlInfo().then(setInfo);
@@ -108,7 +110,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           </label>
           <p className="muted small">
             {settings?.control
-              ? `이 PC 안에서만 연결할 수 있습니다 (포트 ${info?.port ?? "…"}). Claude Code 터미널에서 아래 명령을 한 번 실행해 등록하세요.`
+              ? `이 PC 안에서만 연결할 수 있습니다 (포트 ${info?.port ?? "…"}). Claude Code에 아래 명령을 붙여 넣거나, 바로 등록을 눌러 한 번 등록하세요.`
               : "켜면 이 PC 안에서만 연결할 수 있는 통로가 열립니다. Claude가 미디어 가져오기·편집·내보내기를 대신할 수 있습니다."}
           </p>
           {settings?.control && info && (
@@ -120,6 +122,26 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
               <button className="ghost-btn" onClick={() => copy("json", info.json)} title="Claude Desktop 등 설정 파일(JSON)용으로 복사">
                 {copied === "json" ? "복사됨" : "JSON"}
               </button>
+            </div>
+          )}
+          {settings?.control && (
+            <div className="register-row">
+              <button
+                className="primary-btn"
+                disabled={registering}
+                onClick={() => {
+                  setRegistering(true);
+                  setRegistered(undefined);
+                  window.zapcut
+                    .registerClaude()
+                    .then(setRegistered)
+                    .finally(() => setRegistering(false));
+                }}
+                title="이 PC의 Claude Code에 ZapCut을 바로 등록합니다"
+              >
+                <PlugZap size={14} /> {registering ? "등록하는 중…" : "Claude Code에 바로 등록"}
+              </button>
+              {registered && <span className={`small ${registered.ok ? "" : "register-err"}`}>{registered.message}</span>}
             </div>
           )}
 

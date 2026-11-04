@@ -77,6 +77,7 @@ const api = {
   getSettings: (): Promise<Settings> => ipcRenderer.invoke("settings:get"),
   setSettings: (patch: Partial<Settings>): Promise<Settings> => ipcRenderer.invoke("settings:set", patch),
   controlInfo: (): Promise<ControlInfo> => ipcRenderer.invoke("control:info"),
+  registerClaude: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke("control:register"),
   onControl: (fn: (name: string, args: unknown) => unknown) => {
     ipcRenderer.on("control:call", async (_e, id: string, name: string, args: unknown) => {
       try {
