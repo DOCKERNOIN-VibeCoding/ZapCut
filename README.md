@@ -70,7 +70,9 @@ Claude Code나 Claude Desktop 같은 MCP 클라이언트가 실행 중인 ZapCut
    Claude Desktop 등 설정 파일을 쓰는 클라이언트는 **JSON** 버튼으로 복사한 내용을 `mcpServers`에 넣습니다. 브리지는 앱 안의 Node로 실행되므로 Node를 따로 설치할 필요가 없습니다. ZapCut이 꺼져 있으면 브리지가 자동으로 켭니다.
 3. Claude에게 말로 시킵니다. 예: "이 폴더의 영상 세 개를 이어 붙이고 제목을 넣어 쇼츠용 9:16으로 내보내 줘".
 
-도구: `get_state`(상태) · `new_project` · `set_project` · `reframe`(포맷 변환: 비율·기준(가운데/얼굴)·자르기(꽉 채우기/1:1+여백)·블러) · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `add_text_template` · `add_sticker` · `add_sound`(효과음·배경음악, 끝까지 채우기) · `add_effect` · `apply_template`(영상 템플릿) · `caption`(자동 캡션) · `export_srt` · `cut_silence`(무음 잘라내기) · `list_library`(타이틀·전환·필터·효과·애니메이션·스티커·소리·템플릿 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info`.
+도구: `get_state`(상태) · `new_project` · `set_project` · `reframe`(포맷 변환: 비율·기준(가운데/얼굴)·자르기(꽉 채우기/1:1+여백)·블러) · `open_project` · `save_project` · `import_media`(경로나 http URL) · `add_to_timeline` · `add_text` · `add_title` · `add_text_template` · `add_sticker` · `add_sound`(효과음·배경음악, 끝까지 채우기) · `add_effect` · `apply_template`(영상 템플릿) · `caption`(자동 캡션) · `export_srt` · `cut_silence`(무음 잘라내기) · `keep_ranges`(고른 구간만 남기고 모든 트랙을 당겨 붙이기: 하이라이트) · `list_library`(타이틀·전환·필터·효과·애니메이션·스티커·소리·템플릿 id) · `update_clip` · `split_clip` · `delete_clips` · `select` · `set_playhead` · `undo`/`redo` · `screenshot`(미리보기 캡처, Claude가 결과를 눈으로 확인) · `export`/`export_status`/`cancel_export` · `app_info` · `recipes`(응용법).
+
+- **응용법**: 여러 도구를 이어 쓰는 요청(예: "OOO 이야기한 부분만 하이라이트로 30초")의 처리 순서와 사용자에게 미리 알릴 한계를 [electron/mcp-recipes.md](electron/mcp-recipes.md)에 적어 두었습니다. 설치본에는 `resources\mcp\mcp-recipes.md`로 들어가고, Claude는 `recipes` 도구로 읽습니다. 서버 안내문(instructions)이 복잡한 요청 전에 이 문서를 읽으라고 알려 주므로, 연결된 Claude는 따로 설정하지 않아도 응용법을 씁니다.
 
 - 앱을 처음 켤 때 "복구할까요?" 같은 확인 창이 떠 있으면 먼저 답해야 Claude의 명령이 처리됩니다.
 - MCP 클라이언트 없이 스크립트에서 쓰려면 같은 파일을 명령줄로 부릅니다: `ZapCut.exe --mcp call get_state`, `… call export '{"path":"C:\\out.mp4"}'`, `… call screenshot --out shot.png` (`tools`는 도구 목록). 결과는 JSON으로 출력됩니다.
@@ -87,6 +89,19 @@ npm run mcp:build    # MCP 브리지(dist-electron/mcp.cjs)만 다시 묶기 (np
 node scripts/mcp-smoke.mjs   # 실행 중인 앱(외부 제어 켬)에 MCP로 붙어 가져오기→편집→내보내기까지 확인
 npm run dist:win     # release/ZapCut-Setup-<버전>.exe 생성 (PATH의 ffmpeg를 번들)
 ```
+
+### 기능을 추가·변경할 때: MCP 안내도 함께 고치기
+
+연결된 Claude는 소스 코드를 보지 않고, MCP로 전달되는 안내만 보고 ZapCut을 씁니다. 사용자가 쓸 수 있는 기능을 추가하거나 바꾸면 **같은 커밋에서** 아래도 함께 고칩니다. 빠뜨리면 그 기능은 Claude에게 없는 것과 같습니다.
+
+| 어디 | 무엇을 |
+| --- | --- |
+| [electron/mcpTools.ts](electron/mcpTools.ts) | 도구 추가·변경: 이름(snake_case)·설명·입력 스키마. 설명에 언제 쓰는지, 단위, 다른 도구와의 순서를 적습니다. 처리기는 [src/editor/control.ts](src/editor/control.ts)의 `handlers`(또는 `main: true`면 `electron/control.ts`) |
+| [electron/mcp.ts](electron/mcp.ts)의 `INSTRUCTIONS` | 서버 안내문. 모든 연결에 자동으로 전달됩니다. 기본 흐름이나 단위·트랙 규칙이 바뀌면 고칩니다. 길면 클라이언트가 잘라 버리므로 짧게 유지하고, 자세한 내용은 응용법으로 보냅니다 |
+| [electron/mcp-recipes.md](electron/mcp-recipes.md) | 응용법. 새 기능을 다른 도구와 이어 쓰는 방법, 사용자에게 미리 알릴 한계를 추가합니다 |
+| README "Claude로 조종하기"의 도구 목록, [docs/ZapCut_Claude_연결_가이드.md](docs/ZapCut_Claude_연결_가이드.md) | 사람이 읽는 문서 |
+
+확인: `npm test`(도구마다 처리기가 있는지 검사), `npm run mcp:build` 뒤 `node dist-electron/mcp.cjs tools`로 목록에 보이는지, `… call recipes`로 응용법이 나오는지 봅니다.
 
 ### 새 버전 배포
 

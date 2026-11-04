@@ -108,10 +108,13 @@ const INSTRUCTIONS = `ZapCut(짭컷) 동영상 편집기를 조종하는 도구�
 단위: 시간은 초. 위치 x, y는 캔버스 중심 기준 비율(0 = 가운데, ±0.5 = 화면 끝). scale 1 = 캔버스에 맞춤. fontSize는 1080p 기준 px. 색은 #rrggbb.
 트랙: 메인 트랙(main=true)의 클립은 빈틈 없이 이어지며 자석이 켜져 있으면 자동으로 당겨 붙습니다. 텍스트·타이틀·스티커는 메인 트랙 위의 별도 트랙에 놓입니다. 전환(transition)은 메인 트랙에서 다음 클립으로 넘어갈 때 적용됩니다.
 export는 기본으로 끝날 때까지 기다립니다(수 분 걸릴 수 있음). 클라이언트에 시간 제한이 있으면 wait=false로 시작하고 export_status로 확인하세요.
-ID 목록(타이틀 템플릿·전환·필터·효과·애니메이션 등)은 list_library로 봅니다.`;
+ID 목록(타이틀 템플릿·전환·필터·효과·애니메이션 등)은 list_library로 봅니다.
+여러 단계를 거치는 요청(특정 내용만 골라 하이라이트·목표 길이 맞추기·숏폼 만들기 등)이나 처리 방법이 애매한 요청은 시작 전에 recipes로 응용법과 미리 알릴 한계를 읽습니다.`;
 
 /** 도구 호출. import_media의 URL은 먼저 내려받아 로컬 경로로 바꾼다 */
 async function invoke(name: string, args: Record<string, unknown>): Promise<unknown> {
+  // 응용법 문서는 이 스크립트 옆에 있다 (빌드: dist-electron, 설치본: resources\mcp)
+  if (name === "recipes") return readFile(path.join(__dirname, "mcp-recipes.md"), "utf8");
   if (name === "import_media") {
     const paths = await Promise.all(((args.paths as string[]) ?? []).map(async (p) => (/^https?:\/\//i.test(p) ? ((await call("download", { url: p })) as { path: string }).path : p)));
     return call(name, { ...args, paths });

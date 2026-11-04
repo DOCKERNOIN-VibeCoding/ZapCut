@@ -85,6 +85,10 @@
         "to": "mcp/zapcut-mcp.cjs"
       },
       {
+        "from": "dist-electron/mcp-recipes.md",
+        "to": "mcp/mcp-recipes.md"
+      },
+      {
         "from": "build/ffmpeg",
         "to": "ffmpeg",
         "filter": [

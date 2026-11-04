@@ -1,7 +1,7 @@
 // MCP 브리지(electron/mcp.ts)를 Electron 없이 돌아가는 단일 Node 스크립트(dist-electron/mcp.cjs)로 묶는다.
 // 묶여 들어간 패키지 목록을 dist-electron/mcp-packages.json에 적어 collect-licenses.mjs가 라이선스를 함께 모은다.
 import { build } from "esbuild";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -20,6 +20,9 @@ const r = await build({
   logLevel: "warning",
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
 });
+
+// recipes 도구가 읽는 응용법 문서 (스크립트 옆에 둔다)
+copyFileSync(path.join(root, "electron/mcp-recipes.md"), path.join(root, "dist-electron/mcp-recipes.md"));
 
 const dirs = new Set();
 for (const f of Object.keys(r.metafile.inputs)) {

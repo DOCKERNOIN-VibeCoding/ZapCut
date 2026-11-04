@@ -12,6 +12,7 @@ import {
   clipFromMedia,
   effectClip,
   findClip,
+  keepRanges,
   mapClip,
   maxDuration,
   MIN_CLIP,
@@ -423,6 +424,17 @@ export const handlers: Record<string, Handler> = {
     st.commit((p) => removeClips(p, ids));
     st.select([]);
     return { deleted: ids };
+  },
+
+  keep_ranges: ({ ranges }) => {
+    const st = s();
+    const before = projectDuration(st.project);
+    const next = keepRanges(st.project, (ranges as { start: number; end: number }[]).map((r) => ({ a: r.start, b: r.end })));
+    const after = projectDuration(next);
+    need(after > 0, "남길 구간이 프로젝트 범위 밖입니다 (get_state의 duration 확인)");
+    st.commit(() => next);
+    st.select([]);
+    return { before, after, removed: before - after };
   },
 
   split_clip: ({ id, time }) => {

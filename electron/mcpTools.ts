@@ -8,6 +8,7 @@ export interface ToolDef {
   schema: Record<string, z.ZodType>;
   main?: boolean; // 메인 프로세스가 처리
   readOnly?: boolean; // 상태를 바꾸지 않음
+  local?: boolean; // 브리지가 앱에 묻지 않고 바로 답함
 }
 
 const id = z.string().min(1);
@@ -195,6 +196,12 @@ export const TOOLS: Record<string, ToolDef> = {
     description: "클립들을 지운다. 메인 트랙은 자석이 켜져 있으면 뒤 클립이 당겨진다.",
     schema: { ids: z.array(id).min(1) },
   },
+  keep_ranges: {
+    title: "구간만 남기기",
+    description:
+      "ranges(타임라인 시간) 구간만 남기고 나머지를 모든 트랙(영상·소리·자막·텍스트)에서 잘라낸 뒤 당겨 붙인다. 하이라이트 추출·특정 내용만 남기기용. 남는 구간은 타임라인 순서대로 이어지고 겹친 구간은 합쳐진다. 한 번의 undo로 되돌린다. 구간은 caption 결과의 start/end로 정하고, 문장이 잘리지 않게 앞뒤 0.2초쯤 여유를 둔다. split_clip+delete_clips로 지우면 자막이 제자리에 남아 어긋나므로 이 도구를 쓴다.",
+    schema: { ranges: z.array(z.object({ start: time, end: time })).min(1).describe("남길 구간 [{start, end}] (초)") },
+  },
   split_clip: {
     title: "클립 분할",
     description: "클립을 time(타임라인 시간)에서 둘로 나누고 오른쪽 조각의 id를 돌려준다.",
@@ -227,5 +234,13 @@ export const TOOLS: Record<string, ToolDef> = {
   },
   export_status: { title: "내보내기 상태", description: "진행 중인 내보내기의 진행률(0~1)과 결과.", schema: {}, readOnly: true },
   cancel_export: { title: "내보내기 취소", description: "진행 중인 내보내기를 멈춘다.", schema: {} },
+  recipes: {
+    title: "응용법",
+    description:
+      "여러 도구를 이어 쓰는 요청의 처리 방법(특정 내용 하이라이트, 목표 길이 맞추기, 템포 정리+자막, 숏폼·여러 포맷, 소제목, 사진 모음)과 사용자에게 미리 알릴 한계. 여러 단계 편집이나 처리 방법이 애매한 요청은 시작 전에 먼저 읽는다.",
+    schema: {},
+    readOnly: true,
+    local: true,
+  },
   app_info: { title: "앱 정보", description: "ZapCut 버전과 경로.", schema: {}, main: true, readOnly: true },
 };

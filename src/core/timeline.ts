@@ -212,6 +212,28 @@ export function rippleDelete(p: Project, a: number, b: number): Project {
   return { ...p, tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.flatMap(cut) })) };
 }
 
+/**
+ * keep 구간(타임라인 시간)만 남기고 나머지를 모든 트랙에서 잘라내 당겨 붙인다 (하이라이트 추출).
+ * 남는 구간은 타임라인 순서대로 이어진다. 겹치거나 붙은 구간은 합친다.
+ */
+export function keepRanges(p: Project, keep: { a: number; b: number }[]): Project {
+  const end = projectDuration(p);
+  const sorted = keep.map((r) => ({ a: Math.max(0, r.a), b: Math.min(end, r.b) })).filter((r) => r.b > r.a).sort((x, y) => x.a - y.a);
+  const cuts: { a: number; b: number }[] = [];
+  let t = 0;
+  for (const r of sorted) {
+    if (r.a > t) cuts.push({ a: t, b: r.a });
+    t = Math.max(t, r.b);
+  }
+  if (t < end) cuts.push({ a: t, b: end });
+  const before = new Map(p.tracks.flatMap((tr) => tr.clips).map((c) => [c.id, c.duration]));
+  // 뒤에서부터 잘라야 앞쪽 시각이 밀리지 않는다
+  const out = cuts.reverse().reduce((acc, r) => rippleDelete(acc, r.a, r.b), p);
+  // 구간 앞뒤 여유에 이웃 자막이 조금씩 걸려 남는다. 잘려서 0.3초도 안 남은 자막은 번쩍이기만 하므로 뺀다
+  const sliver = (c: Clip) => c.caption && c.duration < 0.3 && before.get(c.id) !== c.duration;
+  return { ...out, tracks: out.tracks.map((tr) => ({ ...tr, clips: tr.clips.filter((c) => !sliver(c)) })) };
+}
+
 export function splitClip(p: Project, clipId: string, time: number): [Project, string | undefined] {
   const found = findClip(p, clipId);
   if (!found) return [p, undefined];

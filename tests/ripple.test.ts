@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipEnd, clipFromMedia, newProject, newTrack, rippleDelete, textClip } from "../src/core/timeline";
+import { clipEnd, clipFromMedia, keepRanges, newProject, newTrack, projectDuration, rippleDelete, textClip } from "../src/core/timeline";
 import type { Clip, MediaItem, Project } from "../src/core/types";
 import { mergeRanges } from "../src/editor/silence";
 
@@ -75,5 +75,26 @@ describe("구간 잘라내고 당겨 붙이기", () => {
 describe("구간 합치기", () => {
   it("겹치거나 붙은 구간은 하나로", () => {
     expect(mergeRanges([{ a: 5, b: 6 }, { a: 1, b: 2 }, { a: 1.5, b: 3 }, { a: 3, b: 4 }])).toEqual([{ a: 1, b: 4 }, { a: 5, b: 6 }]);
+  });
+});
+
+describe("구간만 남기기 (하이라이트)", () => {
+  it("남길 구간 밖은 모든 트랙에서 잘리고 남은 구간이 순서대로 이어진다", () => {
+    const q = keepRanges(setup(), [{ a: 8, b: 12 }, { a: 3, b: 4 }]);
+    expect(projectDuration(q)).toBe(5);
+    expect(byId(q, "cap1")).toMatchObject({ start: 0, duration: 1 }); // 3~4 → 0~1
+    expect(byId(q, "late")).toMatchObject({ start: 1, duration: 1 }); // 8~9 → 1~2
+    expect(byId(q, "cap3")).toBeUndefined(); // 4.2~5.7: 잘린 구간 안
+    const main = q.tracks.find((t) => t.main)!.clips.sort((a, b) => a.start - b.start);
+    expect(main.map((c) => [c.start, c.duration, c.in])).toEqual([[0, 1, 3], [1, 2, 8], [3, 2, 10]]);
+  });
+  it("구간 끝에 조금 걸려 남은 자막 조각은 뺀다", () => {
+    const q = keepRanges(setup(), [{ a: 0, b: 3.6 }]); // capX 3.5~6.5 → 0.1초만 남음
+    expect(byId(q, "capX")).toBeUndefined();
+    expect(byId(keepRanges(setup(), [{ a: 0, b: 4 }]), "capX")).toMatchObject({ start: 3.5, duration: 0.5 });
+  });
+  it("겹친 구간은 합치고 프로젝트 밖은 무시한다", () => {
+    const q = keepRanges(setup(), [{ a: 1, b: 3 }, { a: 2, b: 4 }, { a: 14, b: 99 }]);
+    expect(projectDuration(q)).toBe(4);
   });
 });
