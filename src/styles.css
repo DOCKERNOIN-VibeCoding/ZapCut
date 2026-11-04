@@ -230,9 +230,14 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 /* 정보 창: 외부 제어(MCP) 등록 명령 */
 .cmd-row { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; }
 .cmd-row .ghost-btn { display: flex; align-items: center; gap: 4px; white-space: nowrap; padding: 5px 10px; font-size: 12px; }
-.register-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; }
+.register-row { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 2px; }
 .register-row .primary-btn { white-space: nowrap; padding: 5px 12px; font-size: 12px; }
+.register-row > span { white-space: pre-line; line-height: 1.5; }
 .register-err { color: var(--danger); word-break: break-all; }
+.tip { position: relative; color: var(--danger); font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help; }
+.tip-bubble { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 250px; padding: 8px 10px; border-radius: 6px; background: #2c2c33; border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); color: var(--text); font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; z-index: 20; }
+.tip-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #2c2c33; }
+.tip:hover .tip-bubble { display: block; }
 .cmd { flex: 1; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; line-height: 1.4; background: var(--panel-3); padding: 6px 8px; border-radius: 6px; word-break: break-all; user-select: all; }
 .credits { list-style: none; margin: 0 0 8px; padding: 0; max-height: 260px; overflow: auto; }
 .credits li { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }

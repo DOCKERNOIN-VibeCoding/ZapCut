@@ -110,12 +110,18 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           </label>
           <p className="muted small">
             {settings?.control
-              ? `이 PC 안에서만 연결할 수 있습니다 (포트 ${info?.port ?? "…"}). Claude Code에 아래 명령을 붙여 넣거나, 바로 등록을 눌러 한 번 등록하세요.`
+              ? `이 PC 안에서만 연결할 수 있습니다 (포트 ${info?.port ?? "…"}). Claude Code에 아래 명령을 붙여 넣거나, 'Claude에 바로 등록'을 눌러 한 번 등록하세요.`
               : "켜면 이 PC 안에서만 연결할 수 있는 통로가 열립니다. Claude가 미디어 가져오기·편집·내보내기를 대신할 수 있습니다."}
           </p>
           {settings?.control && info && (
             <div className="cmd-row">
               <code className="cmd">{info.command}</code>
+              <span className="tip">
+                (?주의)
+                <span className="tip-bubble">
+                  이 명령은 Claude Code에만 등록됩니다. Claude 채팅에서도 쓰려면 명령을 붙여 넣을 때 Claude Code에 "채팅에서도 쓸 수 있게 등록해 줘"라고 함께 요청하세요. 아래 'Claude에 바로 등록'은 둘 다 한 번에 등록합니다.
+                </span>
+              </span>
               <button className="ghost-btn" onClick={() => copy("command", info.command)} title="등록 명령 복사">
                 <Copy size={14} /> {copied === "command" ? "복사됨" : "복사"}
               </button>
@@ -137,9 +143,9 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
                     .then(setRegistered)
                     .finally(() => setRegistering(false));
                 }}
-                title="이 PC의 Claude Code에 ZapCut을 바로 등록합니다"
+                title="이 PC의 Claude Code와 Claude 앱(채팅)에 ZapCut을 바로 등록합니다"
               >
-                <PlugZap size={14} /> {registering ? "등록하는 중…" : "Claude Code에 바로 등록"}
+                <PlugZap size={14} /> {registering ? "등록하는 중…" : "Claude에 바로 등록"}
               </button>
               {registered && <span className={`small ${registered.ok ? "" : "register-err"}`}>{registered.message}</span>}
             </div>

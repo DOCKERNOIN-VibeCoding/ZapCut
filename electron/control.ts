@@ -5,7 +5,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { execFile, spawn } from "node:child_process";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createWriteStream, existsSync, rmSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
@@ -211,9 +211,12 @@ export function controlInfo(): ControlInfo {
     exe,
     script,
     command: `claude ${MCP_ADD.join(" ")} "${exe}" "${script}"`,
-    json: JSON.stringify({ mcpServers: { zapcut: { command: exe, args: [script], env: { ELECTRON_RUN_AS_NODE: "1" } } } }, null, 2),
+    json: JSON.stringify({ mcpServers: { zapcut: desktopEntry(exe, script) } }, null, 2),
   };
 }
+
+// Claude 앱(채팅) 설정 파일의 mcpServers.zapcut 항목
+const desktopEntry = (exe: string, script: string) => ({ command: exe, args: [script], env: { ELECTRON_RUN_AS_NODE: "1" } });
 
 /** Claude Code 실행 파일. PATH가 없거나 잘못돼 있어도 찾도록 기본 설치 위치도 본다 */
 function findClaude(): string | undefined {
@@ -237,18 +240,68 @@ function runClaude(claude: string, args: string[]) {
   );
 }
 
-/** 정보 창 '바로 등록': 명령을 붙여 넣지 않고 Claude Code(사용자 범위)에 등록한다 */
-async function registerClaude(): Promise<{ ok: boolean; message: string }> {
-  const claude = findClaude();
-  if (!claude) return { ok: false, message: "Claude Code를 찾지 못했습니다. 위 명령을 Claude Code에 붙여 넣어 등록하세요." };
-  // 이미 등록돼 있으면(예전 설치 경로 등) 지우고 다시 등록한다
-  await runClaude(claude, ["mcp", "remove", "zapcut", "-s", "user"]).catch(() => undefined);
-  try {
-    await runClaude(claude, [...MCP_ADD, process.execPath, mcpScriptPath()]);
-    return { ok: true, message: "등록했습니다. Claude Code를 새로 시작하면 ZapCut을 쓸 수 있습니다." };
-  } catch (e) {
-    return { ok: false, message: `등록하지 못했습니다: ${(e as Error).message}` };
+/** Claude 앱(채팅) 설정 파일이 있는 폴더들. 설치 방식에 따라 위치가 다르다 */
+async function desktopConfigDirs() {
+  const local = process.env.LOCALAPPDATA ?? "";
+  const sub = async (dir: string, prefix: string) => (await readdir(dir).catch(() => [] as string[])).filter((n) => n.startsWith(prefix)).map((n) => path.join(dir, n));
+  const candidates = [
+    ...(await sub(path.join(local, "Claude-Data"), "claude_")), // 스토어(MSIX) 설치, 최신
+    ...(await sub(path.join(local, "Packages"), "Claude_")).map((p) => path.join(p, "LocalCache", "Roaming", "Claude")), // 스토어 설치, 이전
+    path.join(process.env.APPDATA ?? "", "Claude"), // 홈페이지에서 받은 설치
+  ];
+  const dirs: string[] = [];
+  for (const d of candidates) {
+    const names = await readdir(d).catch(() => undefined);
+    // 데이터를 Claude-Data로 옮긴 옛 폴더에는 표시 파일(.user-data-left.*)만 남는다
+    if (names && !names.some((n) => n.startsWith(".user-data-left"))) dirs.push(d);
   }
+  return dirs;
+}
+
+/** 설정 파일의 다른 내용(다른 MCP 서버·환경 설정)은 그대로 두고 zapcut 항목만 넣는다 */
+async function registerDesktop(dir: string) {
+  const file = path.join(dir, "claude_desktop_config.json");
+  const text = (await readFile(file, "utf8").catch(() => "")).replace(/^﻿/, "");
+  const cfg = text.trim() ? JSON.parse(text) : {}; // 깨진 파일이면 여기서 실패하고 덮어쓰지 않는다
+  cfg.mcpServers = { ...cfg.mcpServers, zapcut: desktopEntry(process.execPath, mcpScriptPath()) };
+  await writeFile(file + ".tmp", JSON.stringify(cfg, null, 2), "utf8");
+  await rename(file + ".tmp", file);
+}
+
+/** 정보 창 'Claude에 바로 등록': Claude Code(사용자 범위)와 Claude 앱(채팅)에 함께 등록한다 */
+async function registerClaude(): Promise<{ ok: boolean; message: string }> {
+  const lines: string[] = [];
+  let ok = true;
+  let done = false;
+  const claude = findClaude();
+  if (claude) {
+    // 이미 등록돼 있으면(예전 설치 경로 등) 지우고 다시 등록한다
+    await runClaude(claude, ["mcp", "remove", "zapcut", "-s", "user"]).catch(() => undefined);
+    try {
+      await runClaude(claude, [...MCP_ADD, process.execPath, mcpScriptPath()]);
+      lines.push("Code 등록 완료");
+      done = true;
+    } catch (e) {
+      lines.push(`Code 등록 실패: ${(e as Error).message}`);
+      ok = false;
+    }
+  }
+  const dirs = await desktopConfigDirs();
+  if (dirs.length) {
+    try {
+      for (const d of dirs) await registerDesktop(d);
+      lines.push("채팅 등록 완료");
+      done = true;
+    } catch (e) {
+      lines.push(`채팅 등록 실패: ${(e as Error).message}`);
+      ok = false;
+    }
+  }
+  if (!claude && !dirs.length) return { ok: false, message: "Claude Code와 Claude 앱을 찾지 못했습니다. 위 명령을 Claude Code에 붙여 넣거나 JSON으로 등록하세요." };
+  if (!claude) lines.push("Code: 설치되어 있지 않음");
+  if (!dirs.length) lines.push("채팅: Claude 앱이 설치되어 있지 않음");
+  if (done) lines.push("Claude를 완전히 종료 후 재시작해야 합니다.");
+  return { ok, message: lines.join("\n") };
 }
 
 /** 창을 만든 뒤 호출. 설정이 켜져 있으면 서버를 띄운다 */

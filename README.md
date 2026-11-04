@@ -61,9 +61,9 @@ CapCut의 코드와 에셋은 사용하지 않습니다. 자세한 내용은 [do
 Claude Code나 Claude Desktop 같은 MCP 클라이언트가 실행 중인 ZapCut을 조종할 수 있습니다. 창이 그대로 열려 있어서 Claude가 하는 편집을 바로 보고 Ctrl+Z로 되돌릴 수 있습니다.
 
 1. ZapCut 정보 창(상단 로고 클릭)에서 **외부 제어(MCP) 허용**을 켭니다. 기본은 꺼짐이고, 켜면 이 PC 안에서만 연결할 수 있는 통로(127.0.0.1의 임의 포트 + 토큰)가 열립니다.
-2. Claude Code에 등록합니다. 방법은 두 가지입니다.
-   - **Claude Code에 바로 등록** 버튼: ZapCut이 Claude Code를 찾아 직접 등록합니다. PATH에 `claude`가 잡혀 있지 않아도 됩니다.
-   - **복사** 버튼으로 등록 명령을 복사해 Claude Code(또는 터미널)에 붙여 넣습니다. 모양은 다음과 같습니다.
+2. Claude에 등록합니다. 방법은 두 가지입니다.
+   - **Claude에 바로 등록** 버튼: ZapCut이 Claude Code와 Claude 데스크톱 앱(채팅)을 찾아 둘 다 등록합니다. PATH에 `claude`가 잡혀 있지 않아도 되고, 데스크톱 앱 설정 파일의 다른 내용은 그대로 둡니다. 등록 뒤 Claude를 완전히 종료했다가 다시 켜야 합니다.
+   - **복사** 버튼으로 등록 명령을 복사해 Claude Code(또는 터미널)에 붙여 넣습니다. 이 명령은 Claude Code에만 등록됩니다. 모양은 다음과 같습니다.
    ```
    claude mcp add zapcut -s user -e ELECTRON_RUN_AS_NODE=1 -- "C:\Program Files\ZapCut\ZapCut.exe" "C:\Program Files\ZapCut\resources\mcp\zapcut-mcp.cjs"
    ```
