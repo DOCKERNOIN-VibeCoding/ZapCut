@@ -25,7 +25,7 @@ function loadSilence(): SilenceOptions {
 }
 // 자동 캡션의 언어·모델 선택도 마지막 값을 기억한다 (목록에 없는 값은 기본값)
 const CAP_KEY = "zapcut.caption";
-function loadCaptionPrefs(): { language: string; modelId: string } {
+export function loadCaptionPrefs(): { language: string; modelId: string } {
   const def = { language: "ko", modelId: "large" };
   try {
     const v = JSON.parse(localStorage.getItem(CAP_KEY) ?? "null") as Partial<typeof def> | null;

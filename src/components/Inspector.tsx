@@ -376,6 +376,11 @@ function AudioSection({ clip, edit }: { clip: Clip; edit: Edit }) {
       <label className="check">
         <input type="checkbox" checked={clip.muted} onChange={(e) => edit((c) => ({ ...c, muted: e.target.checked }))} /> 이 클립 음소거
       </label>
+      {clip.kind === "video" && !clip.muted && (
+        <button className="ghost-btn track-btn" onClick={() => useEditor.getState().detachSelectedAudio()}>
+          오디오 분리 (오디오 트랙으로)
+        </button>
+      )}
     </section>
   );
 }

@@ -73,6 +73,15 @@ OOO 언급이 거의 없거나 전혀 없으면 억지로 채우지 말고, 찾�
 - 빠르게: `import_media`로 여러 장 → `apply_template`(목록은 `list_library templates`)
 - 직접: `add_to_timeline(append=true)` → 클립마다 `update_clip`의 transition → `add_sound(fill=true)`로 배경음악
 
+## 7. 영상의 소리만 따로 다루기
+
+요청 예: "영상 소리를 따로 떼서 끝에 3초 페이드 아웃", "소리는 두고 화면만 바꿔 줘".
+
+1. `get_state`로 영상 클립 id를 찾고 `detach_audio(ids)`로 소리를 오디오 트랙에 떼어 냅니다. 원래 영상 클립은 음소거됩니다.
+2. 돌려받은 `audio_clip_ids`를 `update_clip`(volume·fadeIn·fadeOut·start·duration)이나 `split_clip`으로 다듬습니다.
+3. 떼어 낸 소리는 영상 클립과 묶이지 않습니다. 이후 메인 트랙 클립을 옮기거나 지우면 오디오 클립도 같이 맞춥니다. 구간을 잘라낼 때는 모든 트랙을 함께 자르는 `keep_ranges`·`cut_silence`를 씁니다.
+4. 되돌리려면 오디오 클립을 지우고 영상 클립을 `update_clip`(muted=false)로 풉니다(바로 직후라면 `undo`).
+
 ## 한계 (사용자에게 미리 알릴 것)
 
 - **길이**: 목표 길이에 "비슷하게"만 맞춥니다(2번 응용법).

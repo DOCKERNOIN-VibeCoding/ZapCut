@@ -3,6 +3,7 @@ import {
   canvasSize,
   clipEnd,
   clipFromMedia,
+  detachAudio,
   editPoints,
   effectClip,
   findClip,
@@ -100,6 +101,7 @@ interface EditorState {
   changeSpeed: (id: string | string[], speed: number) => void;
   splitAtPlayhead: () => void;
   deleteSelected: () => void;
+  detachSelectedAudio: () => void;
   trimSide: (side: "left" | "right") => void;
   copy: () => void;
   paste: () => void;
@@ -265,6 +267,14 @@ export const useEditor = create<EditorState>((set, get) => {
       if (!selection.length) return;
       get().commit((p) => removeClips(p, selection));
       set({ selection: [] });
+    },
+
+    detachSelectedAudio: () => {
+      const [next, added] = detachAudio(get().project, get().selection);
+      if (!added.length) return get().notify("소리가 있는 영상 클립을 선택하세요 (이미 분리했거나 음소거한 클립은 제외)");
+      get().commit(() => next);
+      set({ selection: added });
+      get().notify(`소리를 오디오 트랙으로 분리했습니다${added.length > 1 ? ` (${added.length}개)` : ""}`);
     },
 
     trimSide: (side) => {

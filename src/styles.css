@@ -255,6 +255,16 @@ input[type="color"] { width: 34px; height: 24px; padding: 1px; }
 .result.ok { background: rgba(34, 211, 197, 0.12); color: var(--accent); display: flex; justify-content: space-between; align-items: center; }
 .result.err { background: rgba(255, 93, 108, 0.12); color: var(--danger); white-space: pre-wrap; font-size: 11px; max-height: 160px; overflow: auto; user-select: text; }
 .link { display: inline-flex; align-items: center; gap: 4px; color: var(--text); text-decoration: underline; }
+.ctx-menu { position: fixed; z-index: 70; min-width: 190px; padding: 4px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.ctx-item { position: relative; display: flex; align-items: center; width: 100%; padding: 6px 10px 6px 4px; border-radius: 5px; text-align: left; white-space: nowrap; cursor: default; }
+.ctx-item:hover:not(:disabled) { background: var(--panel-3); }
+.ctx-item:disabled { color: var(--muted); opacity: 0.6; }
+.ctx-check { width: 18px; flex-shrink: 0; text-align: center; color: var(--accent); }
+.ctx-keys { margin-left: auto; padding-left: 24px; display: inline-flex; align-items: center; gap: 2px; color: var(--muted); font-size: 11px; }
+.ctx-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.ctx-sub { display: none; position: absolute; left: 100%; top: -5px; min-width: 110px; }
+.ctx-sub.flip { left: auto; right: 100%; }
+.ctx-parent:hover > .ctx-sub { display: block; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 18px; border-radius: 8px; background: #303038; border: 1px solid var(--line); z-index: 60; max-width: 70vw; }
 .toast.error { border-color: var(--danger); color: #ffc2c8; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }

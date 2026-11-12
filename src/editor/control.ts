@@ -10,6 +10,7 @@ import {
   canvasSize,
   clipEnd,
   clipFromMedia,
+  detachAudio,
   effectClip,
   findClip,
   keepRanges,
@@ -435,6 +436,15 @@ export const handlers: Record<string, Handler> = {
     st.commit(() => next);
     st.select([]);
     return { before, after, removed: before - after };
+  },
+
+  detach_audio: ({ ids }) => {
+    const st = s();
+    const [next, added] = detachAudio(st.project, ids);
+    need(added.length, "소리를 분리할 영상 클립이 없습니다 (영상 클립이 아니거나, 소리가 없거나, 이미 음소거됨)");
+    st.commit(() => next);
+    st.select(added);
+    return { audio_clip_ids: added, skipped: ids.length - added.length };
   },
 
   split_clip: ({ id, time }) => {

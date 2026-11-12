@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { atempoChain, buildExportPlan, FILTER_PLACEHOLDER, outputSize } from "../src/core/exportPlan";
-import { clipFromMedia, moveClip, newProject, normalize, placeClip, projectDuration, resolveOverlap, setSpeed, splitClip, textClip, trimAtPlayhead, trimClip } from "../src/core/timeline";
+import { clipFromMedia, detachAudio, moveClip, newProject, normalize, placeClip, projectDuration, resolveOverlap, setSpeed, splitClip, textClip, trimAtPlayhead, trimClip } from "../src/core/timeline";
 import type { MediaItem, Project } from "../src/core/types";
 
 const video = (id: string, duration: number): MediaItem => ({ id, kind: "video", path: `C:\\v\\${id}.mp4`, name: `${id}.mp4`, duration, width: 1920, height: 1080, fps: 30, hasAudio: true });
@@ -147,5 +147,32 @@ describe("내보내기 계획", () => {
     expect(plan.args.at(-1)).toBe("C:\\out.mp4");
     expect(plan.graph).toContain("[vout]");
     expect(plan.graph).toContain("amix=inputs=2");
+  });
+});
+
+describe("오디오 분리", () => {
+  it("같은 구간·속도·볼륨의 오디오 클립을 오디오 트랙에 놓고 원래 클립은 음소거한다", () => {
+    let p = withMain(10, 6);
+    const [, second] = main(p).clips;
+    p = setSpeed(p, second.id, 2);
+    const [res, added] = detachAudio(p, [second.id]);
+    expect(added).toHaveLength(1);
+    const orig = main(res).clips.find((c) => c.id === second.id)!;
+    expect(orig.muted).toBe(true);
+    const track = res.tracks.find((t) => t.kind === "audio")!;
+    const a = track.clips[0];
+    expect(a).toMatchObject({ id: added[0], kind: "audio", mediaId: orig.mediaId, start: orig.start, duration: orig.duration, in: orig.in, speed: 2, muted: false });
+    // 내보내기: 음소거된 영상 클립 소리는 빠진다 (첫 클립 + 분리한 오디오 = 2, 겹치면 3)
+    const plan = buildExportPlan(res, { height: 1080, fps: 30, quality: "high", encoder: "libx264", format: "mp4" }, { text: {} }, "C:\\out.mp4");
+    expect(plan.graph).toContain("amix=inputs=2");
+  });
+
+  it("소리가 없거나 이미 음소거된 클립은 건너뛰어 두 번 분리되지 않는다", () => {
+    const p = withMain(5);
+    const id = main(p).clips[0].id;
+    const [once] = detachAudio(p, [id]);
+    const [twice, added] = detachAudio(once, [id]);
+    expect(added).toHaveLength(0);
+    expect(twice).toBe(once);
   });
 });

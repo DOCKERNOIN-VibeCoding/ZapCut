@@ -1,6 +1,7 @@
 import {
   ArrowLeftToLine,
   ArrowRightToLine,
+  AudioLines,
   Eye,
   EyeOff,
   ListChecks,
@@ -17,13 +18,14 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { findEffect } from "../core/effects";
 import { adjacentPairs, DEFAULT_TRANSITION_DURATION, findTransition } from "../core/transitions";
 import { clipEnd, clipFromMedia, moveClip, resolveOverlap, uid, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
 import type { Clip, MediaItem, Track } from "../core/types";
 import { WAVE_RATE } from "../core/types";
 import { mediaUrl, useEditor } from "../editor/store";
+import { ClipMenu } from "./ClipMenu";
 import { shortTime } from "./format";
 
 const HEADER_W = 96;
@@ -68,13 +70,13 @@ function Waveform({ media, clip, height }: { media: MediaItem; clip: Clip; heigh
   return <canvas ref={ref} className="wave" width={width} height={height} />;
 }
 
-function ClipView({ clip, track, media, onPointerDown }: { clip: Clip; track: Track; media?: MediaItem; onPointerDown: (e: React.PointerEvent, mode: "move" | "left" | "right") => void }) {
+function ClipView({ clip, track, media, onPointerDown, onContextMenu }: { clip: Clip; track: Track; media?: MediaItem; onPointerDown: (e: React.PointerEvent, mode: "move" | "left" | "right") => void; onContextMenu: (e: React.MouseEvent) => void }) {
   const zoom = useEditor((s) => s.zoom);
   const selected = useEditor((s) => s.selection.includes(clip.id));
   const h = trackHeight(track) - 6;
   const style: React.CSSProperties = { left: clip.start * zoom, width: Math.max(2, clip.duration * zoom), height: h };
   let bg: React.CSSProperties = {};
-  if (media?.filmstrip && media.kind === "video") {
+  if (media?.filmstrip && media.kind === "video" && clip.kind === "video") {
     const stripW = (media.duration / clip.speed) * zoom;
     bg = { backgroundImage: `url("${mediaUrl(media.filmstrip)}")`, backgroundSize: `${stripW}px 100%`, backgroundPosition: `${-(clip.in / clip.speed) * zoom}px 0`, backgroundRepeat: "no-repeat" };
   } else if (media?.thumbnail && media.kind === "image") {
@@ -83,7 +85,7 @@ function ClipView({ clip, track, media, onPointerDown }: { clip: Clip; track: Tr
   const label = clip.kind === "text" ? clip.text?.content : clip.kind === "effect" ? `✦ ${findEffect(clip.effect?.id)?.name ?? "효과"}` : clip.kind === "adjust" ? "조정 레이어" : media?.name;
   const kfTimes = selected ? [...new Set(Object.values(clip.keyframes ?? {}).flatMap((ks) => (ks ?? []).map((k) => +k.t.toFixed(3))))] : [];
   return (
-    <div className={`clip ${clip.kind} ${selected ? "selected" : ""}`} data-clip-id={clip.id} style={style} onPointerDown={(e) => onPointerDown(e, "move")}>
+    <div className={`clip ${clip.kind} ${selected ? "selected" : ""}`} data-clip-id={clip.id} style={style} onPointerDown={(e) => onPointerDown(e, "move")} onContextMenu={onContextMenu}>
       <div className="clip-body" style={bg}>
         <span className="clip-label">
           {clip.speed !== 1 && <b>{clip.speed.toFixed(2)}x </b>}
@@ -136,6 +138,8 @@ export function Timeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const snapLine = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number }>();
+  const closeMenu = useCallback(() => setMenu(undefined), []);
   const total = projectDuration(project);
   const width = Math.max((total + 30) * zoom, (scrollRef.current?.clientWidth ?? 1200) - HEADER_W);
   const ed = useEditor.getState;
@@ -203,6 +207,12 @@ export function Timeline() {
   };
 
   const onClipPointer = (e: React.PointerEvent, clip: Clip, track: Track, mode: "move" | "left" | "right") => {
+    // 우클릭: 선택에 없는 클립이면 그 클립만 고르고 메뉴는 contextmenu에서 연다 (여러 개 고른 채 우클릭하면 전부에 적용)
+    if (e.button === 2) {
+      e.stopPropagation();
+      if (!ed().selection.includes(clip.id)) ed().select([clip.id]);
+      return;
+    }
     if (e.button !== 0) return;
     e.stopPropagation();
     const s = ed();
@@ -315,6 +325,9 @@ export function Timeline() {
           <button className="icon-btn" title="삭제 (Delete)" onClick={() => ed().deleteSelected()}>
             <Trash2 size={16} />
           </button>
+          <button className="icon-btn" title="오디오 분리: 선택한 영상 클립의 소리를 오디오 트랙으로 떼어 냄" onClick={() => ed().detachSelectedAudio()}>
+            <AudioLines size={16} />
+          </button>
           <span className="sep" />
           <button className="icon-btn" title="전체 선택 (Ctrl+A) · Ctrl+클릭으로 여러 개 고를 수 있습니다" onClick={() => ed().select(project.tracks.flatMap((t) => t.clips.map((c) => c.id)))}>
             <ListChecks size={16} />
@@ -375,7 +388,17 @@ export function Timeline() {
                 <div key={t.id} className={`track ${t.kind} ${t.main ? "main" : ""} ${t.locked ? "locked" : ""} ${t.hidden ? "hidden" : ""}`} style={{ height: trackHeight(t) }}>
                   {t.main && t.clips.length === 0 && <div className="main-empty">미디어를 여기로 끌어 놓으세요</div>}
                   {t.clips.map((c) => (
-                    <ClipView key={c.id} clip={c} track={t} media={project.media.find((m) => m.id === c.mediaId)} onPointerDown={(e, mode) => onClipPointer(e, c, t, mode)} />
+                    <ClipView
+                      key={c.id}
+                      clip={c}
+                      track={t}
+                      media={project.media.find((m) => m.id === c.mediaId)}
+                      onPointerDown={(e, mode) => onClipPointer(e, c, t, mode)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({ x: e.clientX, y: e.clientY });
+                      }}
+                    />
                   ))}
                   {t.kind === "video" &&
                     adjacentPairs(t).map(([c]) => {
@@ -408,6 +431,7 @@ export function Timeline() {
           </div>
         </div>
       </div>
+      {menu && <ClipMenu x={menu.x} y={menu.y} onClose={closeMenu} />}
     </div>
   );
 }

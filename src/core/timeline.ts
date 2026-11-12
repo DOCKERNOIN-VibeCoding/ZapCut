@@ -174,6 +174,35 @@ export function placeClip(p: Project, clip: Clip, preferredTrackId?: string, for
   return { ...p, tracks: tracks.map((t) => (t.id === id ? { ...t, clips: [...t.clips, clip] } : t)) };
 }
 
+/**
+ * 영상 클립의 소리를 같은 구간·속도·볼륨의 오디오 클립으로 떼어 오디오 트랙에 놓고, 원래 클립은 음소거한다.
+ * 소리가 없거나 이미 음소거(분리)된 영상 클립은 건너뛴다. [project, 새 오디오 클립 id들]
+ */
+export function detachAudio(p: Project, ids: string[]): [Project, string[]] {
+  const added: string[] = [];
+  let next = p;
+  for (const id of ids) {
+    const f = findClip(next, id);
+    const m = f && next.media.find((x) => x.id === f.clip.mediaId);
+    if (!f || f.clip.kind !== "video" || f.clip.muted || !m?.hasAudio) continue;
+    const c = f.clip;
+    const audio: Clip = {
+      ...clipFromMedia(m, c.start),
+      kind: "audio",
+      in: c.in,
+      duration: c.duration,
+      speed: c.speed,
+      volume: c.volume,
+      fadeIn: c.fadeIn,
+      fadeOut: c.fadeOut,
+      keyframes: c.keyframes?.volume ? { volume: c.keyframes.volume } : undefined,
+    };
+    next = placeClip(mapClip(next, id, (x) => ({ ...x, muted: true })), audio);
+    added.push(audio.id);
+  }
+  return [next, added];
+}
+
 export function removeClips(p: Project, ids: string[]): Project {
   const set = new Set(ids);
   return { ...p, tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => !set.has(c.id)) })) };

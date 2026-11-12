@@ -202,6 +202,12 @@ export const TOOLS: Record<string, ToolDef> = {
       "ranges(타임라인 시간) 구간만 남기고 나머지를 모든 트랙(영상·소리·자막·텍스트)에서 잘라낸 뒤 당겨 붙인다. 하이라이트 추출·특정 내용만 남기기용. 남는 구간은 타임라인 순서대로 이어지고 겹친 구간은 합쳐진다. 한 번의 undo로 되돌린다. 구간은 caption 결과의 start/end로 정하고, 문장이 잘리지 않게 앞뒤 0.2초쯤 여유를 둔다. split_clip+delete_clips로 지우면 자막이 제자리에 남아 어긋나므로 이 도구를 쓴다.",
     schema: { ranges: z.array(z.object({ start: time, end: time })).min(1).describe("남길 구간 [{start, end}] (초)") },
   },
+  detach_audio: {
+    title: "오디오 분리",
+    description:
+      "영상 클립의 소리를 떼어 같은 위치·구간·속도·볼륨의 오디오 클립으로 오디오 트랙에 놓고, 원래 영상 클립은 음소거한다. 소리만 따로 옮기거나 자르거나 볼륨·페이드를 조절할 때 쓴다. 소리가 없거나 이미 음소거된 클립은 건너뛴다. 분리한 오디오는 영상 클립과 묶이지 않으므로, 이후 메인 트랙 클립을 옮기거나 지우면 따로 맞춰야 한다(구간 정리는 keep_ranges·cut_silence가 모든 트랙을 함께 자른다).",
+    schema: { ids: z.array(id).min(1).describe("영상 클립 id") },
+  },
   split_clip: {
     title: "클립 분할",
     description: "클립을 time(타임라인 시간)에서 둘로 나누고 오른쪽 조각의 id를 돌려준다.",
