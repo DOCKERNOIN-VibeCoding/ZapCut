@@ -57,15 +57,19 @@ function parseRate(r?: string) {
 }
 
 export async function probe(file: string): Promise<Omit<MediaItem, "id">> {
-  const { stdout } = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", file]);
+  const ext = path.extname(file).toLowerCase();
+  const isImage = IMAGE_EXT.has(ext);
+  // 사진의 EXIF 회전은 스트림이 아니라 첫 프레임에만 실린다 (폰 세로 사진은 가로로 저장되어 있음)
+  const frameArgs = isImage ? ["-show_frames", "-read_intervals", "%+#1"] : [];
+  const { stdout } = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", ...frameArgs, file]);
   const info = JSON.parse(stdout.toString());
   const streams: any[] = info.streams ?? [];
   const v = streams.find((s) => s.codec_type === "video" && s.disposition?.attached_pic !== 1);
   const a = streams.find((s) => s.codec_type === "audio");
-  const ext = path.extname(file).toLowerCase();
-  const kind: MediaKind = IMAGE_EXT.has(ext) ? "image" : v ? "video" : a ? "audio" : "video";
+  const kind: MediaKind = isImage ? "image" : v ? "video" : a ? "audio" : "video";
   if (!v && !a) throw new Error("지원하지 않는 파일입니다");
-  const rotation = Number(v?.side_data_list?.find((d: any) => d.rotation !== undefined)?.rotation ?? v?.tags?.rotate ?? 0);
+  const sideData: any[] = [...(v?.side_data_list ?? []), ...(info.frames?.[0]?.side_data_list ?? [])];
+  const rotation = Number(sideData.find((d: any) => d.rotation !== undefined)?.rotation ?? v?.tags?.rotate ?? 0);
   const swap = Math.abs(rotation) % 180 === 90;
   return {
     kind,
@@ -86,17 +90,29 @@ export async function thumbnails(item: Omit<MediaItem, "id">) {
   await mkdir(dir, { recursive: true });
   const thumb = path.join(dir, "thumb.jpg");
   if (!existsSync(thumb)) {
-    const at = item.kind === "video" ? Math.min(1, item.duration / 2) : 0;
-    await run("ffmpeg", ["-y", "-v", "error", "-ss", String(at), "-i", item.path, "-frames:v", "1", "-vf", "scale=240:-2", thumb]);
+    // 사진에 -ss를 붙이면 (0이라도) 프레임이 하나도 나오지 않는데 ffmpeg는 성공으로 끝난다
+    const seek = item.kind === "video" ? ["-ss", String(Math.min(1, item.duration / 2))] : [];
+    await run("ffmpeg", ["-y", "-v", "error", ...seek, "-i", item.path, "-frames:v", "1", "-vf", "scale=240:-2", thumb]);
+    if (!existsSync(thumb)) throw new Error("썸네일을 만들지 못했습니다");
   }
-  if (item.kind !== "video") return { thumbnail: thumb };
+  return { thumbnail: thumb };
+}
+
+/**
+ * 타임라인 필름스트립. 큰 파일도 빨리 끝나도록 키프레임만 풀어서 만든다 (전부 풀면 4K 긴 영상은 몇 분 걸린다).
+ * 마지막 키프레임 뒤로는 프레임이 없어 칸이 비므로 마지막 프레임을 끝까지 늘린다.
+ */
+export async function filmstrip(item: Omit<MediaItem, "id">) {
+  if (item.kind !== "video") return {};
+  const dir = path.join(cacheRoot(), await cacheKey(item.path));
+  await mkdir(dir, { recursive: true });
   const frames = Math.max(1, Math.min(30, Math.ceil(item.duration / 2)));
   const strip = path.join(dir, `strip${frames}.jpg`);
   if (!existsSync(strip)) {
     const interval = item.duration / frames;
-    await run("ffmpeg", ["-y", "-v", "error", "-i", item.path, "-vf", `fps=1/${interval.toFixed(4)},scale=-2:72,tile=${frames}x1`, "-frames:v", "1", strip]);
+    await run("ffmpeg", ["-y", "-v", "error", "-skip_frame", "nokey", "-i", item.path, "-vf", `tpad=stop_mode=clone:stop_duration=${item.duration.toFixed(3)},fps=1/${interval.toFixed(4)},scale=-2:72,tile=${frames}x1`, "-frames:v", "1", strip]);
   }
-  return { thumbnail: thumb, filmstrip: strip, filmstripFrames: frames };
+  return { filmstrip: strip, filmstripFrames: frames };
 }
 
 export async function waveform(item: Omit<MediaItem, "id">): Promise<number[] | undefined> {

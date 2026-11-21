@@ -21,7 +21,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { findEffect } from "../core/effects";
 import { adjacentPairs, DEFAULT_TRANSITION_DURATION, findTransition } from "../core/transitions";
-import { clipEnd, clipFromMedia, moveClip, resolveOverlap, uid, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
+import { clipEnd, clipFromMedia, findClip, mapClip, moveClip, resolveOverlap, uid, placeClip, projectDuration, snap, snapPoints, trimClip } from "../core/timeline";
 import type { Clip, MediaItem, Track } from "../core/types";
 import { WAVE_RATE } from "../core/types";
 import { mediaUrl, useEditor } from "../editor/store";
@@ -138,19 +138,23 @@ export function Timeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const snapLine = useRef<HTMLDivElement>(null);
+  const marquee = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number }>();
   const closeMenu = useCallback(() => setMenu(undefined), []);
   const total = projectDuration(project);
   const width = Math.max((total + 30) * zoom, (scrollRef.current?.clientWidth ?? 1200) - HEADER_W);
   const ed = useEditor.getState;
 
-  // 재생 중 재생헤드가 화면 밖으로 나가면 스크롤
+  // 재생 중에는 재생헤드를 따라 넘기고, 멈춰 있을 때도 화면 밖으로 나가면(프로젝트 열기, Home/End, 편집점 이동 등) 보이는 곳까지 스크롤
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || !playing) return;
+    if (!el) return;
     const x = playhead * zoom;
     const view = el.clientWidth - HEADER_W;
-    if (x > el.scrollLeft + view - 40 || x < el.scrollLeft) el.scrollLeft = Math.max(0, x - 40);
+    if (playing) {
+      if (x > el.scrollLeft + view - 40 || x < el.scrollLeft) el.scrollLeft = Math.max(0, x - 40);
+    } else if (x < el.scrollLeft) el.scrollLeft = Math.max(0, x - 40);
+    else if (x > el.scrollLeft + view) el.scrollLeft = x - view + 40;
   }, [playhead, playing, zoom]);
 
   // Ctrl+휠: 재생헤드 기준 확대/축소
@@ -193,17 +197,115 @@ export function Timeline() {
     if (t !== undefined) el.style.left = `${t * ed().zoom}px`;
   };
 
+  const capture = (e: React.PointerEvent) => {
+    try {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    } catch {
+      // 이미 끝난 포인터면 붙잡을 수 없다 (무시)
+    }
+  };
+
   const startScrub = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const s = ed();
     s.setPlayhead(timeAt(e.clientX));
-    const move = (ev: PointerEvent) => ed().setPlayhead(timeAt(ev.clientX));
+    let px = e.clientX;
+    const scroll = autoScroll(() => ed().setPlayhead(timeAt(px)), false);
+    const move = (ev: PointerEvent) => {
+      px = ev.clientX;
+      scroll.follow(ev);
+      ed().setPlayhead(timeAt(px));
+    };
     const up = () => {
+      scroll.stop();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    // 창 밖에서 놓아도 끝을 받도록 포인터를 붙잡는다 (안 그러면 끌기·자동 스크롤이 멈추지 않는다)
+    capture(e);
+  };
+
+  /**
+   * 끄는 동안 포인터가 보이는 트랙 영역 가장자리(40px 안쪽)나 그 바깥에 있으면 그쪽으로 스크롤하고 onScroll을 부른다. 멀수록 빠르게.
+   * 포인터를 멈춰 둬도 계속 스크롤되도록 프레임마다 확인한다. @param vertical 위아래로도 스크롤할지 (길이 조절은 좌우만)
+   */
+  const autoScroll = (onScroll: () => void, vertical: boolean) => {
+    const scroller = scrollRef.current!;
+    const EDGE = 40;
+    const speed = (d: number) => (d < EDGE ? Math.min(30, Math.ceil((EDGE - d) / 2)) : 0);
+    let px = 0;
+    let py = 0;
+    let raf = 0;
+    const tick = () => {
+      const v = scroller.getBoundingClientRect();
+      const { scrollLeft, scrollTop } = scroller;
+      scroller.scrollLeft += speed(v.right - px) - speed(px - (v.left + HEADER_W));
+      if (vertical) scroller.scrollTop += speed(v.bottom - py) - speed(py - (v.top + RULER_H));
+      if (scroller.scrollLeft !== scrollLeft || scroller.scrollTop !== scrollTop) onScroll();
+      raf = requestAnimationFrame(tick);
+    };
+    return {
+      follow: (ev: PointerEvent) => {
+        px = ev.clientX;
+        py = ev.clientY;
+        if (!raf) raf = requestAnimationFrame(tick);
+      },
+      stop: () => cancelAnimationFrame(raf),
+    };
+  };
+
+  /** 트랙 빈 곳: 클릭하면 선택 해제, 끌면 사각형 안에 걸친 클립을 고른다 (Ctrl/Shift면 기존 선택에 더함) */
+  const startMarquee = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const base = e.ctrlKey || e.shiftKey ? ed().selection : [];
+    if (!base.length) ed().select([]);
+    const content = contentRef.current!;
+    const box = marquee.current!;
+    // 시작점은 내용 기준 좌표로 기억한다 (자동 스크롤로 내용이 움직여도 제자리에 있도록)
+    const r0 = content.getBoundingClientRect();
+    const sx = e.clientX - r0.left;
+    const sy = e.clientY - r0.top;
+    let px = e.clientX;
+    let py = e.clientY;
+    const update = () => {
+      const r = content.getBoundingClientRect();
+      const x = px - r.left, y = py - r.top;
+      const left = Math.min(sx, x), right = Math.max(sx, x);
+      const top = Math.min(sy, y), bottom = Math.max(sy, y);
+      Object.assign(box.style, { display: "block", left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+      const hit = [...content.querySelectorAll<HTMLElement>(".clip[data-clip-id]")]
+        .filter((el) => {
+          const c = el.getBoundingClientRect();
+          return c.right - r.left > left && c.left - r.left < right && c.bottom - r.top > top && c.top - r.top < bottom;
+        })
+        .map((el) => el.dataset.clipId!);
+      const next = [...new Set([...base, ...hit])];
+      const cur = ed().selection;
+      if (next.length !== cur.length || next.some((id, i) => id !== cur[i])) ed().select(next);
+    };
+    const scroll = autoScroll(update, true);
+    const move = (ev: PointerEvent) => {
+      px = ev.clientX;
+      py = ev.clientY;
+      scroll.follow(ev);
+      update();
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      scroll.stop();
+      box.style.display = "none";
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    // 창 밖에서 놓아도 끝을 받도록 포인터를 붙잡는다 (안 그러면 끌기·자동 스크롤이 멈추지 않는다)
+    capture(e);
   };
 
   const onClipPointer = (e: React.PointerEvent, clip: Clip, track: Track, mode: "move" | "left" | "right") => {
@@ -220,23 +322,40 @@ export function Timeline() {
       s.select(s.selection.includes(clip.id) ? s.selection.filter((x) => x !== clip.id) : [...s.selection, clip.id]);
       return;
     }
-    if (!s.selection.includes(clip.id) || s.selection.length > 1) s.select([clip.id]);
+    // 여러 개 고른 채 그중 하나를 끌면 함께 옮긴다 (자석 켠 메인 트랙·잠긴 트랙의 클립은 제외)
+    const group =
+      mode === "move" && s.selection.length > 1 && s.selection.includes(clip.id)
+        ? s.selection.map((id) => findClip(s.project, id)).filter((f): f is { track: Track; clip: Clip } => !!f && !f.track.locked && !(f.track.main && s.magnet)).map((f) => f.clip)
+        : [];
+    const together = group.length > 1 && group.some((c) => c.id === clip.id);
+    if (!together && (!s.selection.includes(clip.id) || s.selection.length > 1)) s.select([clip.id]);
     if (track.locked) return;
     const x0 = e.clientX;
     const grabOffset = timeAt(e.clientX) - clip.start;
-    const points = snapPoints(s.project, [clip.id], s.playhead);
+    const points = snapPoints(s.project, together ? group.map((c) => c.id) : [clip.id], s.playhead);
+    const earliest = Math.min(...group.map((c) => c.start));
     const threshold = SNAP_PX / s.zoom;
     const layout = s.project.tracks;
     const newTrackId = uid("trk");
     let started = false;
+    let px = e.clientX;
+    let py = e.clientY;
+    // 자동 스크롤로 내용이 움직이면 같은 포인터 위치로 다시 계산한다 (포인터 밑의 시간이 바뀌므로)
+    const scroll = autoScroll(() => drag(), mode === "move" && !together);
     const move = (ev: PointerEvent) => {
       if (!started) {
         if (Math.abs(ev.clientX - x0) < 3 && mode === "move" && Math.abs(ev.movementY) < 3) return;
         started = true;
         ed().beginGesture();
       }
+      px = ev.clientX;
+      py = ev.clientY;
+      scroll.follow(ev);
+      drag();
+    };
+    const drag = () => {
       const st = ed();
-      const t = timeAt(ev.clientX);
+      const t = timeAt(px);
       if (mode === "move") {
         let start = t - grabOffset;
         let line: number | undefined; // 달라붙은 경계 위치
@@ -252,7 +371,12 @@ export function Timeline() {
           }
         }
         showSnap(line);
-        const target = trackAt(ev.clientY, layout);
+        if (together) {
+          const dt = Math.max(start - clip.start, -earliest);
+          st.updateGesture((p) => group.reduce((acc, g) => mapClip(acc, g.id, (c) => ({ ...c, start: g.start + dt })), p));
+          return;
+        }
+        const target = trackAt(py, layout);
         st.updateGesture((p) => moveClip(p, clip.id, target, start, st.magnet, { allowOverlap: true, newTrackId }));
       } else {
         let edgeT = t;
@@ -265,12 +389,19 @@ export function Timeline() {
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      scroll.stop();
       showSnap(undefined);
       // 놓은 자리가 다른 클립과 겹치면 그 트랙 바로 위에 새 트랙을 만든다
-      if (started) ed().endGesture(mode === "move" ? (p) => resolveOverlap(p, clip.id) : undefined);
+      if (started) ed().endGesture(mode !== "move" ? undefined : together ? (p) => group.reduce((acc, g) => resolveOverlap(acc, g.id), p) : (p) => resolveOverlap(p, clip.id));
+      // 끌지 않고 클릭만 했으면 그 클립 하나만 고른다
+      else if (together) ed().select([clip.id]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    // 창 밖에서 놓아도 끝을 받도록 포인터를 붙잡는다 (안 그러면 끌기·자동 스크롤이 멈추지 않는다)
+    capture(e);
   };
 
   const onDrop = async (e: React.DragEvent) => {
@@ -329,7 +460,7 @@ export function Timeline() {
             <AudioLines size={16} />
           </button>
           <span className="sep" />
-          <button className="icon-btn" title="전체 선택 (Ctrl+A) · Ctrl+클릭으로 여러 개 고를 수 있습니다" onClick={() => ed().select(project.tracks.flatMap((t) => t.clips.map((c) => c.id)))}>
+          <button className="icon-btn" title="전체 선택 (Ctrl+A) · Ctrl+클릭 또는 빈 곳에서 끌어 여러 개 고를 수 있습니다" onClick={() => ed().select(project.tracks.flatMap((t) => t.clips.map((c) => c.id)))}>
             <ListChecks size={16} />
           </button>
         </div>
@@ -377,13 +508,7 @@ export function Timeline() {
             <div onPointerDown={startScrub}>
               <Ruler width={width} zoom={zoom} />
             </div>
-            <div
-              className="tracks"
-              onPointerDown={(e) => {
-                ed().select([]);
-                startScrub(e);
-              }}
-            >
+            <div className="tracks" onPointerDown={startMarquee}>
               {project.tracks.map((t) => (
                 <div key={t.id} className={`track ${t.kind} ${t.main ? "main" : ""} ${t.locked ? "locked" : ""} ${t.hidden ? "hidden" : ""}`} style={{ height: trackHeight(t) }}>
                   {t.main && t.clips.length === 0 && <div className="main-empty">미디어를 여기로 끌어 놓으세요</div>}
@@ -426,6 +551,7 @@ export function Timeline() {
             </div>
             <div className="playhead" style={{ left: playhead * zoom }} />
             <div className="snap-line" ref={snapLine} />
+            <div className="marquee" ref={marquee} />
             {total > 0 && <div className="end-marker" style={{ left: total * zoom }} />}
             {silence?.project === project && silence.ranges.map((r, i) => <div key={i} className="silence-band" style={{ left: r.a * zoom, width: Math.max(2, (r.b - r.a) * zoom) }} title="무음 구간 (잘라내기 미리 보기)" />)}
           </div>

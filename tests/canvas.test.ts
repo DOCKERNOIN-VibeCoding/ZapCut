@@ -27,7 +27,7 @@ describe("캔버스 크기", () => {
 
 describe("첫 소스에 맞춤", () => {
   beforeEach(() => {
-    vi.stubGlobal("window", { zapcut: { probeMedia: async (path: string) => ({ ...hd("x"), path }), needsProxy: async () => false } });
+    vi.stubGlobal("window", { zapcut: { probeMedia: async (path: string) => ({ ...hd("x"), path }), needsProxy: async () => false, mediaExtras: async () => ({}) } });
   });
 
   it("비율을 직접 고른 프로젝트는 첫 소스를 가져와도 그대로다", async () => {

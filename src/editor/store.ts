@@ -38,6 +38,12 @@ const baseValue = (c: Clip, prop: KfProp) => (prop === "volume" ? c.volume : isM
 
 const HISTORY_LIMIT = 200;
 
+/** 잠긴 트랙의 클립은 빼고 (선택은 되지만 삭제·자르기는 막는다) */
+const unlockedIds = (p: Project, ids: string[]) => ids.filter((id) => {
+  const f = findClip(p, id);
+  return f && !f.track.locked;
+});
+
 export type ResourceTab = "media" | "audio" | "text" | "sticker" | "effect" | "transition" | "filter" | "adjust" | "template";
 
 interface EditorState {
@@ -112,6 +118,15 @@ interface EditorState {
 
 export const useEditor = create<EditorState>((set, get) => {
   const apply = (p: Project) => normalize(p, get().magnet);
+  /**
+   * 뒤에서 준비된 미디어 정보(필름스트립·파형·프록시, 바로잡은 크기)를 실행 취소 기록 없이 채운다.
+   * 기록과 끌기 시작 상태에도 같이 넣어, 되돌리거나 끄는 중에도 사라지지 않게 한다.
+   */
+  const patchMedia = (id: string, patch: Partial<MediaItem>) => {
+    const fix = (p: Project) => (p.media.some((m) => m.id === id) ? { ...p, media: p.media.map((m) => (m.id === id ? { ...m, ...patch } : m)) } : p);
+    const st = get();
+    set({ project: fix(st.project), past: st.past.map(fix), future: st.future.map(fix), gestureBase: st.gestureBase && fix(st.gestureBase) });
+  };
 
   return {
     // 탐색기 "연결 프로그램"으로 미디어와 함께 켜졌을 때는 새 프로젝트 창 없이 첫 소스에 맞춘다
@@ -149,16 +164,30 @@ export const useEditor = create<EditorState>((set, get) => {
       set({ gestureBase: undefined, project: apply(finalize ? finalize(project) : project), past: [...past, gestureBase].slice(-HISTORY_LIMIT), future: [], dirty: true });
     },
     undo: () => {
-      const { past, project, future } = get();
+      const { past, project, future, selection } = get();
       if (!past.length) return;
-      set({ project: past[past.length - 1], past: past.slice(0, -1), future: [project, ...future], dirty: true });
+      const prev = past[past.length - 1];
+      set({ project: prev, past: past.slice(0, -1), future: [project, ...future], dirty: true, selection: selection.filter((id) => findClip(prev, id)) });
     },
     redo: () => {
-      const { past, project, future } = get();
+      const { past, project, future, selection } = get();
       if (!future.length) return;
-      set({ project: future[0], future: future.slice(1), past: [...past, project], dirty: true });
+      set({ project: future[0], future: future.slice(1), past: [...past, project], dirty: true, selection: selection.filter((id) => findClip(future[0], id)) });
     },
-    load: (project, filePath) => set({ project: upgradeProject(project), filePath, past: [], future: [], selection: [], playhead: 0, playing: false, dirty: false }),
+    load: (project, filePath) => {
+      set({ project: upgradeProject(project), filePath, past: [], future: [], selection: [], playhead: 0, playing: false, dirty: false });
+      // 예전 버전은 폰 세로 사진의 EXIF 회전을 놓쳐 가로·세로가 뒤바뀐 크기로 저장했다. 열 때 다시 읽어 바로잡는다
+      for (const m of project.media.filter((x) => x.kind === "image")) {
+        window.zapcut
+          .probeMedia(m.path)
+          .then((info) => {
+            if (info.width === m.width && info.height === m.height) return;
+            patchMedia(m.id, { width: info.width, height: info.height });
+            set({ dirty: true });
+          })
+          .catch(() => {});
+      }
+    },
     markSaved: (filePath) => set({ filePath, dirty: false }),
     notify: (text, kind = "info") => set({ toast: { text, kind, at: Date.now() } }),
 
@@ -190,13 +219,20 @@ export const useEditor = create<EditorState>((set, get) => {
           const item: MediaItem = { ...info, id: uid("med"), name: opts.names?.[i] ?? info.name, sticker: opts.sticker || undefined };
           added.push(item);
           get().commit((p) => ({ ...p, media: [...p.media, item] }));
+          // 파일 전체를 읽어야 하는 필름스트립·파형은 기다리지 않고 뒤에서 만들어 채운다 (큰 파일도 바로 쓸 수 있게)
+          if (item.kind !== "image") {
+            window.zapcut
+              .mediaExtras(info)
+              .then((x) => patchMedia(item.id, x))
+              .catch(() => {});
+          }
           // 미리보기로 재생할 수 없는 코덱이면 프록시를 백그라운드로 만든다
           if (await window.zapcut.needsProxy(item)) {
             get().notify(`미리보기용 프록시 생성 중: ${item.name}`);
             window.zapcut
               .makeProxy(item.path)
               .then((proxy) => {
-                set({ project: { ...get().project, media: get().project.media.map((m) => (m.id === item.id ? { ...m, proxy } : m)) } });
+                patchMedia(item.id, { proxy });
                 get().notify(`프록시 준비 완료: ${item.name}`);
               })
               .catch((e: Error) => get().notify(`프록시 생성 실패: ${e.message}`, "error"));
@@ -246,7 +282,7 @@ export const useEditor = create<EditorState>((set, get) => {
     splitAtPlayhead: () => {
       const { project, selection, playhead } = get();
       const ids = selection.length
-        ? selection
+        ? unlockedIds(project, selection)
         : project.tracks.filter((t) => !t.locked).flatMap((t) => t.clips.filter((c) => playhead > c.start && playhead < clipEnd(c)).map((c) => c.id));
       if (!ids.length) return;
       const newSel: string[] = [];
@@ -263,10 +299,12 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     deleteSelected: () => {
-      const { selection } = get();
+      const { selection, project } = get();
       if (!selection.length) return;
-      get().commit((p) => removeClips(p, selection));
-      set({ selection: [] });
+      const ids = unlockedIds(project, selection);
+      if (ids.length < selection.length) get().notify("잠긴 트랙의 클립은 지우지 않았습니다");
+      get().commit((p) => removeClips(p, ids));
+      set({ selection: selection.filter((id) => !ids.includes(id)) });
     },
 
     detachSelectedAudio: () => {
@@ -280,8 +318,8 @@ export const useEditor = create<EditorState>((set, get) => {
     trimSide: (side) => {
       const { project, selection, playhead } = get();
       const ids = selection.length
-        ? selection
-        : project.tracks.flatMap((t) => t.clips.filter((c) => playhead > c.start && playhead < clipEnd(c)).map((c) => c.id));
+        ? unlockedIds(project, selection)
+        : project.tracks.filter((t) => !t.locked).flatMap((t) => t.clips.filter((c) => playhead > c.start && playhead < clipEnd(c)).map((c) => c.id));
       get().commit((p) => ids.reduce((acc, id) => trimAtPlayhead(acc, id, playhead, side), p));
       if (side === "left" && get().magnet) {
         // 왼쪽 삭제 후 메인 트랙이 당겨지면 재생헤드를 잘린 클립 시작으로 이동

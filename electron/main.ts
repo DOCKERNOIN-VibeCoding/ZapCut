@@ -11,7 +11,7 @@ import type { MediaItem, Project } from "../src/core/types";
 import { SOUNDS } from "../src/library/sounds";
 import { trackBox, type Box } from "../src/core/track";
 import { runMcpBridge, setupControl } from "./control";
-import { encoders, extractFrame, makeProxy, needsProxy, probe, reverseRange, run, thumbnails, waveform } from "./ffmpeg";
+import { encoders, extractFrame, filmstrip, makeProxy, needsProxy, probe, reverseRange, run, thumbnails, waveform } from "./ffmpeg";
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "zapcut-media", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true } },
@@ -109,10 +109,14 @@ ipcMain.handle("media:pick", async () => {
   return r.canceled ? [] : r.filePaths;
 });
 
+// 가져오기는 정보와 썸네일까지만 기다린다. 파일 전체를 읽는 필름스트립·파형은 media:extras로 뒤에서 만든다
 ipcMain.handle("media:probe", async (_e, file: string) => {
   const item = await probe(file);
-  const [thumbs, wave] = await Promise.all([thumbnails(item).catch(() => ({})), waveform(item).catch(() => undefined)]);
-  return { ...item, ...thumbs, waveform: wave };
+  return { ...item, ...(await thumbnails(item).catch(() => ({}))) };
+});
+ipcMain.handle("media:extras", async (_e, item: Omit<MediaItem, "id">) => {
+  const [strip, wave] = await Promise.all([filmstrip(item).catch(() => ({})), waveform(item).catch(() => undefined)]);
+  return { ...strip, waveform: wave };
 });
 
 ipcMain.handle("media:needsProxy", async (_e, item: Omit<MediaItem, "id">) => needsProxy(item));

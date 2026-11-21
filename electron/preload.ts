@@ -5,6 +5,7 @@ import type { CaptionRequest, SilenceRequest, TrackRequest, UpdateStatus } from 
 const api = {
   pickMedia: (): Promise<string[]> => ipcRenderer.invoke("media:pick"),
   probeMedia: (file: string) => ipcRenderer.invoke("media:probe", file),
+  mediaExtras: (item: unknown): Promise<{ filmstrip?: string; filmstripFrames?: number; waveform?: number[] }> => ipcRenderer.invoke("media:extras", item),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   saveProject: (project: unknown, filePath?: string): Promise<string | undefined> => ipcRenderer.invoke("project:save", project, filePath),
   openProject: (filePath?: string) => ipcRenderer.invoke("project:open", filePath),
